@@ -109,13 +109,13 @@ Videos, writeups, and real-world experiences from security professionals using R
 <td align="center" width="50%">
 <img src="assets/samuele.png" alt="Samuele Giampieri" width="120"/><br/>
 <b>Samuele Giampieri</b> — Creator & Lead Maintainer<br/><br/>
-Fullstack Developer & AI specialist with 15+ years of experience. Builds scalable web applications and AI-driven solutions using LangChain, LangGraph, and hybrid RAG architectures with vector and graph databases. Creator of RedAmon and founder of Devergo Labs.<br/><br/>
-<a href="https://www.linkedin.com/in/samuele-giampieri-b1b67597/">LinkedIn</a> · <a href="https://github.com/samugit83">GitHub</a> · <a href="https://www.devergolabs.com/">Devergo Labs</a> · <a href="https://www.linkedin.com/newsletters/the-gradient-path-7337462379640717312/">The Gradient Path Newsletter</a>
+AI Platform Architect & Full-Stack Lead with 15+ years of freelancing experience and more than 30 projects shipped to production, including enterprise-scale AI agentic systems. AWS-certified (DevOps Engineer, ML Specialty) and IBM-certified AI Engineer. Designs end-to-end ML solutions spanning deep learning, NLP, Computer Vision, and AI Agent systems with LangChain/LangGraph.<br/><br/>
+<a href="https://www.linkedin.com/in/samuele-giampieri-b1b67597/">LinkedIn</a> · <a href="https://github.com/samugit83">GitHub</a> · <a href="https://www.devergolabs.com/">Devergo Labs</a>
 </td>
 <td align="center" width="50%">
 <img src="assets/ritesh.png" alt="Ritesh Gohil" width="120"/><br/>
 <b>Ritesh Gohil (L4stPL4Y3R)</b> — Co-Maintainer<br/><br/>
-Information Security Engineer at Ryanair with a Master's in Cyber Security. Secured 200+ web and mobile applications, published 9 CVEs in MITRE, and received honorable mentions from Google and Apple. Holds AWS Security Specialty, eWPTXv2, eCPPTv2, CRTP, and CEH certifications.<br/><br/>
+Cyber Security Engineer at Workday with over 7 years of experience in Web, API, Mobile, Network, and Cloud penetration testing. Published 11 CVEs in MITRE, with security acknowledgements from Google (4×) and Apple (6×). Secured 200+ web and mobile applications and contributed to Exploit Database, Google Hacking Database, and the AWS Community. Holds AWS Security Specialty, eWPTXv2, eCPPTv2, CRTP, and CEH certifications with expertise in red teaming, cloud security, CVE research, and security architecture review.<br/><br/>
 <a href="https://www.linkedin.com/in/riteshgohil25/">LinkedIn</a> · <a href="https://github.com/L4stPL4Y3R">GitHub</a>
 </td>
 </tr>
