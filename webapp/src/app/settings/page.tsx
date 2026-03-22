@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Loader2, Eye, EyeOff, Upload, Download, Swords } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, EyeOff, Upload, Download, Swords, RotateCw } from 'lucide-react'
 import { useProject } from '@/providers/ProjectProvider'
 import { LlmProviderForm } from '@/components/settings/LlmProviderForm'
 import type { ProviderData } from '@/components/settings/LlmProviderForm'
@@ -33,6 +33,21 @@ const EMPTY_SETTINGS: UserSettings = {
   chiselAuth: '',
 }
 
+interface RotationInfo {
+  extraKeyCount: number
+  rotateEveryN: number
+}
+
+/** Maps settings field name → rotation tool name */
+const TOOL_NAME_MAP: Record<string, string> = {
+  tavilyApiKey: 'tavily',
+  shodanApiKey: 'shodan',
+  serpApiKey: 'serp',
+  nvdApiKey: 'nvd',
+  vulnersApiKey: 'vulners',
+  urlscanApiKey: 'urlscan',
+}
+
 function getProviderIcon(providerType: string): string {
   return PROVIDER_TYPES.find(p => p.id === providerType)?.icon || '⚙️'
 }
@@ -56,6 +71,12 @@ export default function SettingsPage() {
   const [settingsDirty, setSettingsDirty] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({})
+
+  // Key Rotation
+  const [rotationConfigs, setRotationConfigs] = useState<Record<string, RotationInfo>>({})
+  const [rotationModal, setRotationModal] = useState<string | null>(null) // toolName or null
+  const [rotationDraft, setRotationDraft] = useState({ extraKeys: '', rotateEveryN: 10 })
+  const [rotationDraftDirty, setRotationDraftDirty] = useState(false) // true = user typed new keys
 
   // Attack Skills
   const [attackSkills, setAttackSkills] = useState<{ id: string; name: string; description?: string | null; createdAt: string }[]>([])
@@ -229,6 +250,9 @@ export default function SettingsPage() {
           chiselServerUrl: data.chiselServerUrl || '',
           chiselAuth: data.chiselAuth || '',
         })
+        if (data.rotationConfigs) {
+          setRotationConfigs(data.rotationConfigs)
+        }
       }
     } catch (err) {
       console.error('Failed to fetch settings:', err)
@@ -259,10 +283,29 @@ export default function SettingsPage() {
     if (!userId) return
     setSettingsSaving(true)
     try {
+      // Build rotation configs payload from pending state
+      const rotPayload: Record<string, { extraKeys: string; rotateEveryN: number }> = {}
+      for (const [, toolName] of Object.entries(TOOL_NAME_MAP)) {
+        const info = rotationConfigs[toolName]
+        if (info && (info as RotationInfo & { _extraKeys?: string })._extraKeys !== undefined) {
+          // New keys were set via the modal — send them
+          rotPayload[toolName] = {
+            extraKeys: (info as RotationInfo & { _extraKeys?: string })._extraKeys!,
+            rotateEveryN: info.rotateEveryN,
+          }
+        } else if (info && info.extraKeyCount > 0) {
+          // Existing keys not modified — send masked marker to preserve
+          rotPayload[toolName] = {
+            extraKeys: '••••',
+            rotateEveryN: info.rotateEveryN,
+          }
+        }
+      }
+
       const resp = await fetch(`/api/users/${userId}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({ ...settings, rotationConfigs: rotPayload }),
       })
       if (resp.ok) {
         const data = await resp.json()
@@ -277,6 +320,9 @@ export default function SettingsPage() {
           chiselServerUrl: data.chiselServerUrl || '',
           chiselAuth: data.chiselAuth || '',
         })
+        if (data.rotationConfigs) {
+          setRotationConfigs(data.rotationConfigs)
+        }
         setSettingsDirty(false)
       }
     } catch (err) {
@@ -284,7 +330,7 @@ export default function SettingsPage() {
     } finally {
       setSettingsSaving(false)
     }
-  }, [userId, settings])
+  }, [userId, settings, rotationConfigs])
 
   const updateSetting = useCallback(<K extends keyof UserSettings>(field: K, value: string) => {
     setSettings(prev => ({ ...prev, [field]: value }))
@@ -295,10 +341,70 @@ export default function SettingsPage() {
     setVisibleFields(prev => ({ ...prev, [field]: !prev[field] }))
   }, [])
 
+  const openRotationModal = useCallback((settingsField: string) => {
+    const toolName = TOOL_NAME_MAP[settingsField]
+    if (!toolName) return
+    const existing = rotationConfigs[toolName]
+    setRotationModal(toolName)
+    setRotationDraft({
+      extraKeys: '',
+      rotateEveryN: existing?.rotateEveryN ?? 10,
+    })
+    setRotationDraftDirty(false)
+  }, [rotationConfigs])
+
+  const closeRotationModal = useCallback(() => {
+    setRotationModal(null)
+    setRotationDraft({ extraKeys: '', rotateEveryN: 10 })
+    setRotationDraftDirty(false)
+  }, [])
+
+  const saveRotationDraft = useCallback(() => {
+    if (!rotationModal) return
+    const existing = rotationConfigs[rotationModal]
+    if (rotationDraftDirty) {
+      // User typed new keys — send them (may be empty to clear)
+      const keys = rotationDraft.extraKeys.split('\n').filter(k => k.trim())
+      setRotationConfigs(prev => ({
+        ...prev,
+        [rotationModal]: {
+          extraKeyCount: keys.length,
+          rotateEveryN: Math.max(1, rotationDraft.rotateEveryN),
+          _extraKeys: rotationDraft.extraKeys,
+        } as RotationInfo & { _extraKeys: string },
+      }))
+    } else {
+      // Only rotateEveryN changed — preserve existing keys
+      setRotationConfigs(prev => ({
+        ...prev,
+        [rotationModal]: {
+          extraKeyCount: existing?.extraKeyCount ?? 0,
+          rotateEveryN: Math.max(1, rotationDraft.rotateEveryN),
+        },
+      }))
+    }
+    setSettingsDirty(true)
+    closeRotationModal()
+  }, [rotationModal, rotationDraft, rotationDraftDirty, rotationConfigs, closeRotationModal])
+
+  const clearRotationConfig = useCallback(() => {
+    if (!rotationModal) return
+    setRotationConfigs(prev => ({
+      ...prev,
+      [rotationModal]: {
+        extraKeyCount: 0,
+        rotateEveryN: 10,
+        _extraKeys: '',
+      } as RotationInfo & { _extraKeys: string },
+    }))
+    setSettingsDirty(true)
+    closeRotationModal()
+  }, [rotationModal, closeRotationModal])
+
   if (!userId) {
     return (
       <div className={styles.page}>
-        <h1 className={styles.pageTitle}>Global Settings</h1>
+        <h1 className={styles.pageTitle}>Global Settings <span style={{ fontSize: '0.55em', fontWeight: 400, opacity: 0.5 }}>(User-Scoped)</span></h1>
         <div className={styles.emptyState}>Select a user to configure settings.</div>
       </div>
     )
@@ -306,7 +412,10 @@ export default function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.pageTitle}>Global Settings</h1>
+      <h1 className={styles.pageTitle}>Global Settings <span style={{ fontSize: '0.55em', fontWeight: 400, opacity: 0.5 }}>(User-Scoped)</span></h1>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '-8px 0 16px' }}>
+        Personal configuration for the current user. These settings apply across all projects.
+      </p>
 
       {/* Section 1: LLM Providers */}
       <div className={styles.section}>
@@ -372,10 +481,10 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Section 2: Tool API Keys */}
+      {/* Section 2: API Keys (User-Scoped) */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Tool API Keys</h2>
+          <h2 className={styles.sectionTitle}>API Keys</h2>
         </div>
         {settingsLoading ? (
           <div className={styles.emptyState}><Loader2 size={16} className={styles.spin} /> Loading...</div>
@@ -390,6 +499,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.tavilyApiKey}
               onToggle={() => toggleFieldVisibility('tavilyApiKey')}
               onChange={v => updateSetting('tavilyApiKey', v)}
+              onConfigureRotation={() => openRotationModal('tavilyApiKey')}
+              rotationInfo={rotationConfigs.tavily || null}
             />
             <SecretField
               label="Shodan API Key"
@@ -400,6 +511,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.shodanApiKey}
               onToggle={() => toggleFieldVisibility('shodanApiKey')}
               onChange={v => updateSetting('shodanApiKey', v)}
+              onConfigureRotation={() => openRotationModal('shodanApiKey')}
+              rotationInfo={rotationConfigs.shodan || null}
             />
             <SecretField
               label="SerpAPI Key"
@@ -410,6 +523,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.serpApiKey}
               onToggle={() => toggleFieldVisibility('serpApiKey')}
               onChange={v => updateSetting('serpApiKey', v)}
+              onConfigureRotation={() => openRotationModal('serpApiKey')}
+              rotationInfo={rotationConfigs.serp || null}
             />
             <SecretField
               label="NVD API Key"
@@ -420,6 +535,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.nvdApiKey}
               onToggle={() => toggleFieldVisibility('nvdApiKey')}
               onChange={v => updateSetting('nvdApiKey', v)}
+              onConfigureRotation={() => openRotationModal('nvdApiKey')}
+              rotationInfo={rotationConfigs.nvd || null}
             />
             <SecretField
               label="Vulners API Key"
@@ -430,6 +547,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.vulnersApiKey}
               onToggle={() => toggleFieldVisibility('vulnersApiKey')}
               onChange={v => updateSetting('vulnersApiKey', v)}
+              onConfigureRotation={() => openRotationModal('vulnersApiKey')}
+              rotationInfo={rotationConfigs.vulners || null}
             />
             <SecretField
               label="URLScan API Key"
@@ -440,6 +559,8 @@ export default function SettingsPage() {
               visible={!!visibleFields.urlscanApiKey}
               onToggle={() => toggleFieldVisibility('urlscanApiKey')}
               onChange={v => updateSetting('urlscanApiKey', v)}
+              onConfigureRotation={() => openRotationModal('urlscanApiKey')}
+              rotationInfo={rotationConfigs.urlscan || null}
             />
           </div>
         )}
@@ -654,6 +775,90 @@ export default function SettingsPage() {
           </span>
         </div>
       </Modal>
+
+      {/* Key Rotation Modal */}
+      <Modal
+        isOpen={!!rotationModal}
+        onClose={closeRotationModal}
+        title={`Key Rotation — ${rotationModal || ''}`}
+        size="small"
+        footer={
+          <>
+            {rotationConfigs[rotationModal || '']?.extraKeyCount > 0 && !rotationDraftDirty && (
+              <button className="secondaryButton" onClick={clearRotationConfig} style={{ marginRight: 'auto' }}>
+                Clear All Extra Keys
+              </button>
+            )}
+            <button className="secondaryButton" onClick={closeRotationModal}>Cancel</button>
+            <button
+              className="primaryButton"
+              onClick={saveRotationDraft}
+              disabled={!rotationDraftDirty && rotationDraft.rotateEveryN === (rotationConfigs[rotationModal || '']?.rotateEveryN ?? 10)}
+            >
+              Save
+            </button>
+          </>
+        }
+      >
+        <div className="formGroup">
+          <label className="formLabel">Extra API Keys</label>
+          {rotationConfigs[rotationModal || '']?.extraKeyCount > 0 && !rotationDraftDirty ? (
+            <>
+              <div style={{
+                padding: '10px 12px',
+                background: 'var(--accent-secondary-subtle)',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: 'var(--accent-secondary)',
+                marginBottom: '8px',
+              }}>
+                {rotationConfigs[rotationModal || '']?.extraKeyCount} extra key(s) configured. Paste new keys below to replace them.
+              </div>
+              <textarea
+                className="textInput"
+                rows={5}
+                value={rotationDraft.extraKeys}
+                onChange={e => {
+                  setRotationDraft(prev => ({ ...prev, extraKeys: e.target.value }))
+                  setRotationDraftDirty(true)
+                }}
+                placeholder="Paste API keys here, one per line..."
+                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              />
+            </>
+          ) : (
+            <textarea
+              className="textInput"
+              rows={5}
+              value={rotationDraft.extraKeys}
+              onChange={e => {
+                setRotationDraft(prev => ({ ...prev, extraKeys: e.target.value }))
+                setRotationDraftDirty(true)
+              }}
+              placeholder="Paste API keys here, one per line..."
+              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              autoFocus
+            />
+          )}
+          <span className="formHint">
+            These keys plus the main key above form the rotation pool. All keys are treated equally.
+          </span>
+        </div>
+        <div className="formGroup" style={{ marginTop: '12px' }}>
+          <label className="formLabel">Rotate Every N Calls</label>
+          <input
+            className="textInput"
+            type="number"
+            min={1}
+            value={rotationDraft.rotateEveryN}
+            onChange={e => setRotationDraft(prev => ({ ...prev, rotateEveryN: parseInt(e.target.value, 10) || 10 }))}
+            style={{ width: '120px' }}
+          />
+          <span className="formHint">
+            After this many API calls, switch to the next key in the pool (default: 10).
+          </span>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -666,8 +871,8 @@ const BADGE_STYLES: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     padding: '1px 6px',
     borderRadius: '4px',
-    background: 'rgba(139, 92, 246, 0.15)',
-    color: 'rgb(167, 139, 250)',
+    background: 'var(--status-info-bg)',
+    color: 'var(--status-info-text)',
     marginLeft: '6px',
     verticalAlign: 'middle',
     letterSpacing: '0.02em',
@@ -678,8 +883,8 @@ const BADGE_STYLES: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     padding: '1px 6px',
     borderRadius: '4px',
-    background: 'rgba(20, 184, 166, 0.15)',
-    color: 'rgb(94, 234, 212)',
+    background: 'var(--status-success-bg)',
+    color: 'var(--status-success-text)',
     marginLeft: '6px',
     verticalAlign: 'middle',
     letterSpacing: '0.02em',
@@ -696,6 +901,8 @@ function SecretField({
   visible,
   onToggle,
   onChange,
+  onConfigureRotation,
+  rotationInfo,
 }: {
   label: string
   hint: string
@@ -705,7 +912,12 @@ function SecretField({
   visible: boolean
   onToggle: () => void
   onChange: (v: string) => void
+  onConfigureRotation?: () => void
+  rotationInfo?: RotationInfo | null
 }) {
+  const mainKeyCount = value && !value.startsWith('••••') ? 1 : value ? 1 : 0
+  const totalKeys = mainKeyCount + (rotationInfo?.extraKeyCount || 0)
+
   return (
     <div className="formGroup">
       <label className="formLabel">
@@ -716,17 +928,44 @@ function SecretField({
           </span>
         ))}
       </label>
-      <div className={styles.secretInputWrapper}>
-        <input
-          className="textInput"
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={`Enter ${label.toLowerCase()}`}
-        />
-        <button className={styles.secretToggle} onClick={onToggle} type="button">
-          {visible ? <EyeOff size={14} /> : <Eye size={14} />}
-        </button>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className={styles.secretInputWrapper} style={{ flex: 1 }}>
+          <input
+            className="textInput"
+            type={visible ? 'text' : 'password'}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={`Enter ${label.toLowerCase()}`}
+          />
+          <button className={styles.secretToggle} onClick={onToggle} type="button">
+            {visible ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
+        {onConfigureRotation && (
+          <button
+            onClick={onConfigureRotation}
+            type="button"
+            title="Configure key rotation"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 10px',
+              fontSize: '11px',
+              fontWeight: 500,
+              color: rotationInfo && rotationInfo.extraKeyCount > 0 ? 'var(--accent-secondary)' : 'var(--text-secondary)',
+              background: rotationInfo && rotationInfo.extraKeyCount > 0 ? 'var(--accent-secondary-subtle)' : 'var(--bg-tertiary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            <RotateCw size={12} />
+            Key Rotation
+          </button>
+        )}
       </div>
       <span className="formHint">
         {hint}
@@ -739,6 +978,21 @@ function SecretField({
           </>
         )}
       </span>
+      {rotationInfo && rotationInfo.extraKeyCount > 0 && (
+        <span style={{
+          display: 'inline-block',
+          fontSize: '10px',
+          fontWeight: 600,
+          padding: '2px 8px',
+          borderRadius: '4px',
+          background: 'var(--accent-secondary-subtle)',
+          color: 'var(--accent-secondary)',
+          marginTop: '4px',
+          letterSpacing: '0.02em',
+        }}>
+          {totalKeys} keys total, rotate every {rotationInfo.rotateEveryN} calls
+        </span>
+      )}
     </div>
   )
 }

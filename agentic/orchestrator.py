@@ -21,6 +21,7 @@ from state import (
     summarize_trace_for_response,
 )
 from project_settings import get_setting
+from key_rotation import KeyRotator
 from tools import (
     MCPToolsManager,
     Neo4jToolManager,
@@ -160,8 +161,17 @@ class AgentOrchestrator:
         """Load project settings and reconfigure LLM if model changed."""
         apply_project_settings(self, project_id)
 
-        # Update Tavily key from user settings if available
+        # Update tool API keys and rotation from user settings
         user_settings = getattr(self, '_user_settings', {})
+        rotation_configs = user_settings.get('rotationConfigs', {})
+
+        def _build_rotator(main_key: str, tool_name: str) -> KeyRotator:
+            cfg = rotation_configs.get(tool_name, {})
+            extra = cfg.get('extraKeys', [])
+            rotate_n = cfg.get('rotateEveryN', 10)
+            return KeyRotator([main_key] + extra, rotate_n)
+
+        # Tavily (web_search)
         tavily_key = user_settings.get('tavilyApiKey', '')
         if tavily_key and self._web_search_manager and self._web_search_manager.api_key != tavily_key:
             self._web_search_manager.api_key = tavily_key
@@ -169,8 +179,10 @@ class AgentOrchestrator:
             if new_tool and self.tool_executor:
                 self.tool_executor.update_web_search_tool(new_tool)
                 logger.info("Updated Tavily web search tool with user settings key")
+        if tavily_key and self._web_search_manager:
+            self._web_search_manager.key_rotator = _build_rotator(tavily_key, 'tavily')
 
-        # Update Shodan key from user settings if available
+        # Shodan
         shodan_key = user_settings.get('shodanApiKey', '')
         if self._shodan_manager and self.tool_executor:
             shodan_enabled = get_setting('SHODAN_ENABLED', True)
@@ -182,8 +194,10 @@ class AgentOrchestrator:
             elif not shodan_enabled:
                 self.tool_executor.update_shodan_tool(None)
                 logger.info("Shodan tool disabled via project settings")
+        if shodan_key and self._shodan_manager:
+            self._shodan_manager.key_rotator = _build_rotator(shodan_key, 'shodan')
 
-        # Update Google dork (SerpAPI) key from user settings if available
+        # Google dork (SerpAPI)
         serp_api_key = user_settings.get('serpApiKey', '')
         if self._google_dork_manager and self.tool_executor:
             if serp_api_key and self._google_dork_manager.api_key != serp_api_key:
@@ -191,6 +205,8 @@ class AgentOrchestrator:
                 google_dork_tool = self._google_dork_manager.get_tool()
                 self.tool_executor.update_google_dork_tool(google_dork_tool)
                 logger.info("Updated Google dork tool with SerpAPI key")
+        if serp_api_key and self._google_dork_manager:
+            self._google_dork_manager.key_rotator = _build_rotator(serp_api_key, 'serp')
 
     def _setup_llm(self) -> None:
         """Initialize the LLM based on current model_name.

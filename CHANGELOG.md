@@ -51,11 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provides defense-in-depth alongside the soft LLM-based guardrail
 
 - **Zero-config setup — `.env` file completely removed** — all user-configurable settings (NVD API key, ngrok auth token, chisel server URL/auth) are now managed from the Global Settings UI page and stored in PostgreSQL. No `.env` or `.env.example` file is needed.
-  - **Global Settings → Tool API Keys**: NVD API key added alongside Tavily, Shodan, SerpAPI
+  - **Global Settings → API Keys**: NVD, Vulners, and URLScan API keys added alongside Tavily, Shodan, SerpAPI (all user-scoped)
   - **Global Settings → Tunneling**: new section for ngrok and chisel tunnel configuration with live push to kali-sandbox (no container restart needed)
   - **Tunnel Manager API**: lightweight HTTP server on port 8015 inside kali-sandbox that receives tunnel config pushes from the webapp and manages ngrok/chisel processes
   - **Boot-time config fetch**: kali-sandbox fetches tunnel credentials from webapp DB on startup
-  - **NVD API key fallback**: project-level `nvdApiKey` falls back to user-level global setting from UserSettings
   - **Bug fix**: NVD API key was never actually passed to CVE lookup function — now correctly wired through
 
 - **Availability Testing Attack Skill** — new built-in attack skill for disrupting service availability. Includes LLM prompt templates for DoS vector selection, resource exhaustion, flooding, and crash exploits. Full integration across the stack:
@@ -96,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Passive OSINT data**: discovers in-scope subdomains, IP addresses, URL paths for endpoint creation, TLS validity, ASN information, and external domains from historical scans
   - **GAU provider deduplication**: when URLScan enrichment has already run, the `urlscan` provider is automatically removed from GAU's data sources to avoid redundant API calls to the same underlying data
   - **Pipeline placement**: runs after domain discovery and before port scanning, alongside Shodan enrichment
-  - **Project settings**: `urlscanEnabled` toggle and `urlscanMaxResults` (default: 500) configurable per project. Optional API key in Global Settings → Tool API Keys
+  - **Project settings**: `urlscanEnabled` toggle and `urlscanMaxResults` (default: 500) configurable per project. Optional API key in Global Settings → API Keys
   - **Frontend**: new `UrlscanSection.tsx` in the Discovery & OSINT tab with passive badge, API key status indicator, and max results configuration
 
 - **ExternalDomain Node** — new graph node type for tracking out-of-scope domains encountered during reconnaissance. Provides situational awareness about the target's external dependencies without scanning them:
@@ -162,6 +161,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Multi-source CVE Attribution** — CVE nodes created from Shodan data now track their source (`source` property) instead of hardcoding "shodan", enabling future enrichment from multiple CVE databases (NVD, Vulners, etc.)
 
+- **API Key Rotation** — configure multiple API keys per tool with automatic round-robin rotation to avoid rate limits. Each key in Global Settings now has a "Key Rotation" button that opens a modal to add extra keys and set the rotation interval (default: every 10 API calls). All keys (main + extras) are treated equally in the rotation pool. Full multi-layer integration:
+  - **Database**: new `ApiKeyRotationConfig` model with `userId + toolName` unique constraint, `extraKeys` (newline-separated), and `rotateEveryN` (default 10)
+  - **Settings API**: `GET /api/users/[id]/settings` returns `rotationConfigs` with key counts (frontend) or full keys (`?internal=true`); `PUT` accepts rotation config upserts with masked-value preservation
+  - **Frontend**: "Key Rotation" button next to each API key field; modal with textarea for extra keys (one per line) and rotation interval input; info badge showing total key count and rotation interval when configured
+  - **Python KeyRotator**: pure-Python round-robin class (`key_rotation.py`) in both `agentic/` and `recon/` containers — no new dependencies, no Docker image rebuild needed
+  - **Agent integration**: orchestrator builds `KeyRotator` per tool manager; `web_search`, `shodan`, and `google_dork` tools use `rotator.current_key` + `tick()` on each API call
+  - **Recon integration**: single `_fetch_user_settings_full()` call replaces individual key fetches; rotators built for Shodan, URLScan, NVD, and Vulners; threaded through `_shodan_get`, `_urlscan_search`, `lookup_cves_nvd`, and `lookup_cves_vulners`
+  - **Backward compatible**: with no extra keys configured, behavior is identical to before
+  - **Tests**: 26 unit tests covering KeyRotator logic, rotation mechanics, integration with Shodan/URLScan/NVD/Vulners enrichment modules
+
+- **NVD/Vulners API Keys moved to Global Settings** — NVD and Vulners API keys removed from the Project model and the project-level fallback chain. All 6 tool API keys (Tavily, Shodan, SerpAPI, NVD, Vulners, URLScan) are now exclusively user-scoped in Global Settings, consistent with the other keys.
+
 ### Fixed
 
 - **Banner grabbing data loss** — fixed falsy value filtering in `neo4j_client.py` banner property handling. Changed `if v` to `if v is not None` to preserve empty strings and zero values that are valid banner data
@@ -185,7 +196,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **OpenAI, Anthropic, OpenRouter** — enter API key, all models auto-discovered
     - **AWS Bedrock** — enter AWS credentials + region, foundation models auto-discovered
     - **OpenAI-Compatible** — single endpoint+model configuration with presets for Ollama, vLLM, LM Studio, Groq, Together AI, Fireworks AI, Mistral AI, and Deepinfra. Supports custom base URL, headers, timeout, temperature, and max tokens
-  - **Tool API Keys** — Tavily API key (web search), Shodan API key (internet-wide OSINT), and SerpAPI key (Google dorking)
+  - **API Keys** — Tavily API key (web search), Shodan API key (internet-wide OSINT), and SerpAPI key (Google dorking)
 - **Test Connection** — each LLM provider can be tested before saving with a "Test Connection" button that sends a simple message and shows the response
 - **DB-only settings** — AI provider keys and Tavily API key are stored exclusively in the database (per-user). No env-var fallback — `.env` is reserved for infrastructure variables only (NVD, tunneling, database credentials, ports)
 - **Prisma schema** — added `UserLlmProvider` and `UserSettings` models with relations to `User`

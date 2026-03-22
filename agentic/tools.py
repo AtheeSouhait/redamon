@@ -412,6 +412,7 @@ class WebSearchToolManager:
     def __init__(self, api_key: str = None, max_results: int = 5):
         self.api_key = api_key or ''
         self.max_results = max_results
+        self.key_rotator = None  # Optional[KeyRotator]
 
     def get_tool(self) -> Optional[callable]:
         """
@@ -453,14 +454,17 @@ class WebSearchToolManager:
             try:
                 from langchain_tavily import TavilySearch
 
+                api_key = manager.key_rotator.current_key if manager.key_rotator and manager.key_rotator.has_keys else manager.api_key
                 tavily_tool = TavilySearch(
                     max_results=manager.max_results,
                     topic="general",
                     search_depth="advanced",
-                    api_key=manager.api_key,
+                    api_key=api_key,
                 )
 
                 results = await tavily_tool.ainvoke({"query": query})
+                if manager.key_rotator:
+                    manager.key_rotator.tick()
 
                 if isinstance(results, str):
                     return results
@@ -500,6 +504,7 @@ class GoogleDorkToolManager:
 
     def __init__(self, api_key: str = None):
         self.api_key = api_key or ''
+        self.key_rotator = None  # Optional[KeyRotator]
 
     def get_tool(self) -> Optional[callable]:
         """
@@ -537,12 +542,13 @@ class GoogleDorkToolManager:
                 Search results with titles, URLs, and snippets
             """
             try:
+                api_key = manager.key_rotator.current_key if manager.key_rotator and manager.key_rotator.has_keys else manager.api_key
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     resp = await client.get(
                         SERPAPI_BASE,
                         params={
                             "engine": "google",
-                            "api_key": manager.api_key,
+                            "api_key": api_key,
                             "q": query,
                             "num": 10,
                             "nfpr": 1,      # Disable auto-correct to preserve dork syntax
@@ -551,6 +557,8 @@ class GoogleDorkToolManager:
                     )
                     resp.raise_for_status()
                     data = resp.json()
+                    if manager.key_rotator:
+                        manager.key_rotator.tick()
 
                 # Check for API-level errors
                 if "error" in data:
@@ -609,6 +617,7 @@ class ShodanToolManager:
 
     def __init__(self, api_key: str = None):
         self.api_key = api_key or ''
+        self.key_rotator = None  # Optional[KeyRotator]
 
     def get_tool(self) -> Optional[callable]:
         """
@@ -647,21 +656,25 @@ class ShodanToolManager:
             Returns:
                 Formatted results from the Shodan API
             """
+            api_key = manager.key_rotator.current_key if manager.key_rotator and manager.key_rotator.has_keys else manager.api_key
             if action == "search":
-                return await _action_search(manager.api_key, query)
+                result = await _action_search(api_key, query)
             elif action == "host":
-                return await _action_host(manager.api_key, ip)
+                result = await _action_host(api_key, ip)
             elif action == "dns_reverse":
-                return await _action_dns_reverse(manager.api_key, ip)
+                result = await _action_dns_reverse(api_key, ip)
             elif action == "dns_domain":
-                return await _action_dns_domain(manager.api_key, domain)
+                result = await _action_dns_domain(api_key, domain)
             elif action == "count":
-                return await _action_count(manager.api_key, query)
+                result = await _action_count(api_key, query)
             else:
                 return (
                     f"Error: Unknown action '{action}'. "
                     "Valid actions: search, host, dns_reverse, dns_domain, count"
                 )
+            if manager.key_rotator:
+                manager.key_rotator.tick()
+            return result
 
         logger.info("Shodan OSINT tool configured (5 actions)")
         return shodan

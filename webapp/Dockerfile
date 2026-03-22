@@ -56,7 +56,7 @@ RUN PRISMA_VER=$(node -p "require('/tmp/prisma-pkg.json').version") && \
     npm cache clean --force && rm /tmp/prisma-pkg.json
 
 # Entrypoint: sync schema to PostgreSQL, then start server
-RUN printf '#!/bin/sh\necho "Syncing Prisma schema..."\nnode node_modules/prisma/build/index.js db push --skip-generate --schema ./prisma/schema.prisma 2>&1\nexec node server.js\n' > /app/entrypoint.sh \
+RUN printf '#!/bin/sh\necho "Syncing Prisma schema..."\nnode node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss --schema ./prisma/schema.prisma 2>&1\nexec node server.js\n' > /app/entrypoint.sh \
     && chmod +x /app/entrypoint.sh
 
 USER nextjs

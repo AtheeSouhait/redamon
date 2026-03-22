@@ -117,6 +117,8 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
     CVE_LOOKUP_MIN_CVSS = settings.get('CVE_LOOKUP_MIN_CVSS', 0.0)
     VULNERS_API_KEY = settings.get('VULNERS_API_KEY', '')
     NVD_API_KEY = settings.get('NVD_API_KEY', '')
+    NVD_KEY_ROTATOR = settings.get('NVD_KEY_ROTATOR')
+    VULNERS_KEY_ROTATOR = settings.get('VULNERS_KEY_ROTATOR')
     SECURITY_CHECK_ENABLED = settings.get('SECURITY_CHECK_ENABLED', True)
     SECURITY_CHECK_DIRECT_IP_HTTP = settings.get('SECURITY_CHECK_DIRECT_IP_HTTP', True)
     SECURITY_CHECK_DIRECT_IP_HTTPS = settings.get('SECURITY_CHECK_DIRECT_IP_HTTPS', True)
@@ -588,6 +590,8 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
                 min_cvss=CVE_LOOKUP_MIN_CVSS,
                 vulners_api_key=VULNERS_API_KEY,
                 nvd_api_key=NVD_API_KEY,
+                nvd_key_rotator=NVD_KEY_ROTATOR,
+                vulners_key_rotator=VULNERS_KEY_ROTATOR,
             )
             recon_data.update(cve_results)
 

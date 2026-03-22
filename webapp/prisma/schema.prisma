@@ -78,6 +78,19 @@ model UserSettings {
   @@map("user_settings")
 }
 
+model ApiKeyRotationConfig {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  toolName     String   @map("tool_name")
+  extraKeys    String   @default("") @map("extra_keys")
+  rotateEveryN Int      @default(10) @map("rotate_every_n")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, toolName])
+  @@map("api_key_rotation_configs")
+}
+
 model Project {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
@@ -303,8 +316,6 @@ model Project {
   cveLookupSource             String   @default("nvd") @map("cve_lookup_source")
   cveLookupMaxCves            Int      @default(20) @map("cve_lookup_max_cves")
   cveLookupMinCvss            Float    @default(0.0) @map("cve_lookup_min_cvss")
-  vulnersApiKey               String   @default("") @map("vulners_api_key")
-  nvdApiKey                   String   @default("") @map("nvd_api_key")
 
   // ========== MITRE CWE/CAPEC ENRICHMENT ==========
   mitreAutoUpdateDb           Boolean  @default(true) @map("mitre_auto_update_db")

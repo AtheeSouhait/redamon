@@ -152,7 +152,7 @@ cd redamon
 After starting the stack, open **http://localhost:3000/settings** (gear icon in the header) to configure everything. No `.env` file is needed — all configuration is done from the UI.
 
 - **LLM Providers** — add API keys for OpenAI, Anthropic, OpenRouter, AWS Bedrock, or any OpenAI-compatible endpoint (Ollama, vLLM, Groq, etc.). Each provider can be tested before saving. The model selector in project settings **dynamically fetches** available models from configured providers.
-- **Tool API Keys** — Tavily, Shodan, SerpAPI, and NVD keys to enable extended agent capabilities (web search, OSINT, CVE lookups).
+- **API Keys** — Tavily, Shodan, SerpAPI, NVD, Vulners, and URLScan keys to enable extended agent capabilities (web search, OSINT, CVE lookups). Supports **key rotation** — configure multiple keys per tool with automatic round-robin rotation to avoid rate limits.
 - **Tunneling** — configure ngrok or chisel for reverse shell tunneling. Changes apply immediately without container restarts.
 
 All settings are stored per-user in the database. See the **[AI Model Providers](https://github.com/samugit83/redamon/wiki/AI-Model-Providers)** wiki page for detailed setup instructions.

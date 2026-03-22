@@ -446,10 +446,11 @@ def classify_cvss_score(score: float) -> str:
 # =============================================================================
 
 def lookup_cves_nvd(
-    product: str, 
-    version: str = None, 
+    product: str,
+    version: str = None,
     max_results: int = 20,
-    api_key: str = None
+    api_key: str = None,
+    key_rotator=None,
 ) -> List[Dict]:
     """
     Query NVD API for CVEs affecting a product/version.
@@ -470,9 +471,10 @@ def lookup_cves_nvd(
     params = {"resultsPerPage": max_results}
     headers = {}
 
-    # Add API key if available
-    if api_key:
-        headers["apiKey"] = api_key
+    # Add API key if available (use rotator if present)
+    effective_key = key_rotator.current_key if key_rotator and key_rotator.has_keys else api_key
+    if effective_key:
+        headers["apiKey"] = effective_key
 
     if cpe_info and version:
         vendor, prod = cpe_info
@@ -489,6 +491,8 @@ def lookup_cves_nvd(
 
     try:
         response = requests.get(NVD_API_URL, params=params, headers=headers, timeout=30)
+        if key_rotator:
+            key_rotator.tick()
 
         # Handle rate limiting (NVD returns 403 or 429 when rate limited)
         if response.status_code == 403:
@@ -551,28 +555,32 @@ def lookup_cves_nvd(
 # Vulners API Lookup
 # =============================================================================
 
-def lookup_cves_vulners(product: str, version: str, api_key: str = None) -> List[Dict]:
+def lookup_cves_vulners(product: str, version: str, api_key: str = None, key_rotator=None) -> List[Dict]:
     """
     Query Vulners API for CVEs (like Nmap's vulners script).
-    
+
     Args:
         product: Product name
         version: Version string (required for Vulners)
         api_key: Vulners API key
-        
+        key_rotator: Optional KeyRotator for key rotation
+
     Returns:
         List of CVE dictionaries
     """
     cves = []
     if not version:
         return cves
-    
+
+    effective_key = key_rotator.current_key if key_rotator and key_rotator.has_keys else api_key
     params = {"software": f"{product} {version}", "version": version, "type": "software"}
-    if api_key:
-        params["apiKey"] = api_key
-    
+    if effective_key:
+        params["apiKey"] = effective_key
+
     try:
         response = requests.get(VULNERS_API_URL, params=params, timeout=30)
+        if key_rotator:
+            key_rotator.tick()
         response.raise_for_status()
         data = response.json()
         
@@ -609,6 +617,8 @@ def run_cve_lookup(
     min_cvss: float = 0.0,
     vulners_api_key: str = None,
     nvd_api_key: str = None,
+    nvd_key_rotator=None,
+    vulners_key_rotator=None,
 ) -> Dict:
     """
     Lookup CVEs for all technologies detected by httpx.
@@ -685,9 +695,9 @@ def run_cve_lookup(
         print(f"[*][CVE] [{i}/{len(tech_to_lookup)}] {tech}...", end=" ", flush=True)
         
         if source == "vulners" and vulners_api_key:
-            cves = lookup_cves_vulners(name, version, vulners_api_key)
+            cves = lookup_cves_vulners(name, version, vulners_api_key, key_rotator=vulners_key_rotator)
         else:
-            cves = lookup_cves_nvd(name, version, max_cves, nvd_api_key)
+            cves = lookup_cves_nvd(name, version, max_cves, nvd_api_key, key_rotator=nvd_key_rotator)
         
         # Filter by min CVSS
         if min_cvss > 0:

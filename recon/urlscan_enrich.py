@@ -29,19 +29,22 @@ logger = logging.getLogger(__name__)
 URLSCAN_API_BASE = "https://urlscan.io/api/v1"
 
 
-def _urlscan_search(domain: str, api_key: str, max_results: int = 500) -> list[dict]:
+def _urlscan_search(domain: str, api_key: str, max_results: int = 500, key_rotator=None) -> list[dict]:
     """Query URLScan.io Search API for domain results."""
+    effective_key = key_rotator.current_key if key_rotator and key_rotator.has_keys else api_key
     url = f"{URLSCAN_API_BASE}/search/"
     params = {
         "q": f"domain:{domain}",
         "size": min(max_results, 10000),
     }
     headers = {}
-    if api_key:
-        headers["API-Key"] = api_key
+    if effective_key:
+        headers["API-Key"] = effective_key
 
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=60)
+        if key_rotator:
+            key_rotator.tick()
         if resp.status_code == 200:
             data = resp.json()
             results = data.get("results", [])
@@ -125,6 +128,7 @@ def run_urlscan_enrichment(combined_result: dict, settings: dict[str, Any]) -> d
         return combined_result
 
     api_key = settings.get("URLSCAN_API_KEY", "")
+    key_rotator = settings.get("URLSCAN_KEY_ROTATOR")
     max_results = settings.get("URLSCAN_MAX_RESULTS", 500)
 
     print(f"\n[PHASE] URLScan.io Passive Enrichment")
@@ -135,7 +139,7 @@ def run_urlscan_enrichment(combined_result: dict, settings: dict[str, Any]) -> d
         print(f"[*][URLScan] No API key — using public results only")
     print(f"[*][URLScan] Querying for domain: {domain} (max {max_results} results)")
 
-    results = _urlscan_search(domain, api_key, max_results)
+    results = _urlscan_search(domain, api_key, max_results, key_rotator=key_rotator)
 
     if not results:
         print(f"[-][URLScan] No results found for {domain}")

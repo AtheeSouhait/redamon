@@ -394,6 +394,19 @@ def _fetch_user_api_key(user_id: str, webapp_url: str, key_name: str) -> str:
         return ''
 
 
+def _fetch_user_settings_full(user_id: str, webapp_url: str) -> dict:
+    """Fetch all unmasked user settings including rotation configs."""
+    import requests as _req
+    try:
+        url = f"{webapp_url.rstrip('/')}/api/users/{user_id}/settings?internal=true"
+        resp = _req.get(url, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logger.warning(f"Could not fetch user settings: {e}")
+        return {}
+
+
 def _fetch_shodan_api_key(user_id: str, webapp_url: str) -> str:
     """Fetch the unmasked Shodan API key from user's global settings."""
     return _fetch_user_api_key(user_id, webapp_url, 'shodanApiKey')
@@ -633,8 +646,6 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['CVE_LOOKUP_SOURCE'] = project.get('cveLookupSource', DEFAULT_SETTINGS['CVE_LOOKUP_SOURCE'])
     settings['CVE_LOOKUP_MAX_CVES'] = project.get('cveLookupMaxCves', DEFAULT_SETTINGS['CVE_LOOKUP_MAX_CVES'])
     settings['CVE_LOOKUP_MIN_CVSS'] = project.get('cveLookupMinCvss', DEFAULT_SETTINGS['CVE_LOOKUP_MIN_CVSS'])
-    settings['VULNERS_API_KEY'] = project.get('vulnersApiKey', DEFAULT_SETTINGS['VULNERS_API_KEY'])
-    settings['NVD_API_KEY'] = project.get('nvdApiKey', DEFAULT_SETTINGS['NVD_API_KEY'])
 
     # MITRE CWE/CAPEC Enrichment
     settings['MITRE_AUTO_UPDATE_DB'] = project.get('mitreAutoUpdateDb', DEFAULT_SETTINGS['MITRE_AUTO_UPDATE_DB'])
@@ -712,23 +723,50 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['PUREDNS_WILDCARD_BATCH'] = project.get('purednsWildcardBatch', DEFAULT_SETTINGS['PUREDNS_WILDCARD_BATCH'])
     settings['PUREDNS_SKIP_VALIDATION'] = project.get('purednsSkipValidation', DEFAULT_SETTINGS['PUREDNS_SKIP_VALIDATION'])
 
-    # Fetch Shodan API key from user's global settings
+    # Fetch all API keys and rotation configs from user's global settings (single call)
+    from helpers.key_rotation import KeyRotator
+
+    user_global = {}
+    if settings.get('USER_ID'):
+        user_global = _fetch_user_settings_full(settings['USER_ID'], webapp_url)
+
+    rotation_cfgs = user_global.get('rotationConfigs', {})
+
+    def _build_rotator(main_key: str, tool_name: str) -> 'KeyRotator':
+        cfg = rotation_cfgs.get(tool_name, {})
+        extra = cfg.get('extraKeys', [])
+        rotate_n = cfg.get('rotateEveryN', 10)
+        return KeyRotator([main_key] + extra, rotate_n)
+
+    # Shodan
     shodan_any = any([
         settings['SHODAN_HOST_LOOKUP'], settings['SHODAN_REVERSE_DNS'],
         settings['SHODAN_DOMAIN_DNS'], settings['SHODAN_PASSIVE_CVES'],
     ])
-    if shodan_any and settings.get('USER_ID'):
-        settings['SHODAN_API_KEY'] = _fetch_shodan_api_key(settings['USER_ID'], webapp_url)
+    if shodan_any:
+        shodan_key = user_global.get('shodanApiKey', '')
+        settings['SHODAN_API_KEY'] = shodan_key
+        settings['SHODAN_KEY_ROTATOR'] = _build_rotator(shodan_key, 'shodan')
 
-    # Fetch URLScan API key from user's global settings
-    # Used by urlscan_enrich.py OR GAU's urlscan provider
+    # URLScan
     urlscan_enrichment = settings.get('URLSCAN_ENABLED', False)
     gau_uses_urlscan = (
         settings.get('GAU_ENABLED', False)
         and 'urlscan' in settings.get('GAU_PROVIDERS', [])
     )
-    if (urlscan_enrichment or gau_uses_urlscan) and settings.get('USER_ID'):
-        settings['URLSCAN_API_KEY'] = _fetch_urlscan_api_key(settings['USER_ID'], webapp_url)
+    if urlscan_enrichment or gau_uses_urlscan:
+        urlscan_key = user_global.get('urlscanApiKey', '')
+        settings['URLSCAN_API_KEY'] = urlscan_key
+        settings['URLSCAN_KEY_ROTATOR'] = _build_rotator(urlscan_key, 'urlscan')
+
+    # NVD / Vulners
+    if settings.get('CVE_LOOKUP_ENABLED'):
+        nvd_key = user_global.get('nvdApiKey', '')
+        vulners_key = user_global.get('vulnersApiKey', '')
+        settings['NVD_API_KEY'] = nvd_key
+        settings['VULNERS_API_KEY'] = vulners_key
+        settings['NVD_KEY_ROTATOR'] = _build_rotator(nvd_key, 'nvd')
+        settings['VULNERS_KEY_ROTATOR'] = _build_rotator(vulners_key, 'vulners')
 
     # Rules of Engagement
     settings['ROE_ENABLED'] = project.get('roeEnabled', DEFAULT_SETTINGS['ROE_ENABLED'])
