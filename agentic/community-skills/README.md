@@ -13,7 +13,7 @@ Ready-to-use attack skill workflows contributed by the community. Download any `
 
 ## Contributing
 
-1. Create your `.md` skill file following the [Writing a Skill File](https://github.com/samugit83/redamon/wiki/Attack-Skills#writing-a-skill-file) format
+1. Create your `.md` skill file following the [Writing a Skill File](https://github.com/samugit83/redamon/wiki/Agent-Skills#writing-a-skill-file) format
 2. Test it in your RedAmon instance by uploading via Global Settings
 3. Fork the repo, add your `.md` file to this folder, and update this table with your GitHub username
 4. Open a Pull Request

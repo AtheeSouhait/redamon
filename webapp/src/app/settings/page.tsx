@@ -539,7 +539,7 @@ export default function SettingsPage() {
         </div>
         <p className={styles.sectionHint}>
           Upload .md files defining custom attack skill workflows. Skills become available as toggles in all project settings.
-          {' '}Browse <a href="https://github.com/samugit83/redamon/wiki/Attack-Skills#community-skills" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>community skills</a> for ready-to-use templates.
+          {' '}Browse <a href="https://github.com/samugit83/redamon/wiki/Agent-Skills#community-skills" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)', textDecoration: 'underline' }}>community skills</a> for ready-to-use templates.
         </p>
 
         {skillsLoading ? (
