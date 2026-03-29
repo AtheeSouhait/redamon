@@ -204,13 +204,13 @@ cmd_install() {
         pull_gvm_images
     fi
 
-    # Start services
+    # Start services (force-recreate ensures compose changes like command: are applied)
     info "Starting services..."
     if [[ "$gvm_mode" == "true" ]]; then
-        docker compose up -d
+        docker compose up -d --force-recreate
     else
         # shellcheck disable=SC2086
-        docker compose up -d $CORE_SERVICES
+        docker compose up -d --force-recreate $CORE_SERVICES
     fi
 
     echo ""
@@ -353,6 +353,13 @@ cmd_update() {
         done
     fi
 
+    # Recreate GVM containers when docker-compose.yml changed (picks up command/image/volume changes)
+    if [[ "$rebuild_all" == "true" ]] && is_gvm_enabled; then
+        info "Recreating GVM containers to apply compose changes..."
+        pull_gvm_images
+        docker compose up -d --force-recreate gvm-redis gvm-postgres gvmd gvm-ospd
+    fi
+
     # Restart services with volume-mounted code changes (no rebuild needed)
     if [[ ${#restart_only[@]} -gt 0 ]]; then
         info "Restarting services for code changes: ${restart_only[*]}"
@@ -388,10 +395,10 @@ cmd_up() {
     fi
 
     if [[ "$gvm_mode" == "true" ]]; then
-        docker compose up -d
+        docker compose up -d --force-recreate
     else
         # shellcheck disable=SC2086
-        docker compose up -d $CORE_SERVICES
+        docker compose up -d --force-recreate $CORE_SERVICES
     fi
 
     success "RedAmon is running at http://localhost:3000"
