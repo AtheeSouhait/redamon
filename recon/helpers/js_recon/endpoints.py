@@ -228,164 +228,167 @@ def extract_endpoints(
         if not content:
             continue
 
-        lines = content.split('\n')
+        try:
+            lines = content.split('\n')
 
-        # Extract REST endpoints
-        for line_num, line in enumerate(lines, 1):
-            for pattern in _REST_PATTERNS:
-                for match in pattern.finditer(line):
-                    url = match.group(1)
-                    if not _is_likely_path(url):
-                        continue
+            # Extract REST endpoints
+            for line_num, line in enumerate(lines, 1):
+                for pattern in _REST_PATTERNS:
+                    for match in pattern.finditer(line):
+                        url = match.group(1)
+                        if not _is_likely_path(url):
+                            continue
 
-                    method = _extract_method(line)
-                    params = _extract_params_from_url(url)
-                    classification = _classify_path(url)
+                        method = _extract_method(line)
+                        params = _extract_params_from_url(url)
+                        classification = _classify_path(url)
 
-                    try:
-                        parsed = urlparse(url)
-                        path = parsed.path or url
-                        base = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ''
-                    except Exception:
-                        path = url
-                        base = ''
+                        try:
+                            parsed = urlparse(url)
+                            path = parsed.path or url
+                            base = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ''
+                        except Exception:
+                            path = url
+                            base = ''
 
-                    key = f"{method}:{path}"
-                    if key not in all_endpoints:
-                        finding_id = hashlib.sha256(f"ep:{key}".encode()).hexdigest()[:16]
-                        all_endpoints[key] = {
-                            'id': finding_id,
-                            'method': method,
-                            'path': path,
-                            'full_url': url,
-                            'type': 'rest',
-                            'base_url': base,
-                            'source_js': source_url,
-                            'parameters': params,
-                            'category': classification['category'],
-                            'severity': classification['severity'],
-                            'line_number': line_num,
-                        }
-
-            # Extract config object URLs
-            for pattern in _CONFIG_PATTERNS:
-                for match in pattern.finditer(line):
-                    url = match.group(1)
-                    if _is_likely_path(url) or url.startswith('http'):
-                        key = f"CONFIG:{url}"
+                        key = f"{method}:{path}"
                         if key not in all_endpoints:
-                            finding_id = hashlib.sha256(f"cfg:{url}".encode()).hexdigest()[:16]
+                            finding_id = hashlib.sha256(f"ep:{key}".encode()).hexdigest()[:16]
+                            all_endpoints[key] = {
+                                'id': finding_id,
+                                'method': method,
+                                'path': path,
+                                'full_url': url,
+                                'type': 'rest',
+                                'base_url': base,
+                                'source_js': source_url,
+                                'parameters': params,
+                                'category': classification['category'],
+                                'severity': classification['severity'],
+                                'line_number': line_num,
+                            }
+
+                # Extract config object URLs
+                for pattern in _CONFIG_PATTERNS:
+                    for match in pattern.finditer(line):
+                        url = match.group(1)
+                        if _is_likely_path(url) or url.startswith('http'):
+                            key = f"CONFIG:{url}"
+                            if key not in all_endpoints:
+                                finding_id = hashlib.sha256(f"cfg:{url}".encode()).hexdigest()[:16]
+                                all_endpoints[key] = {
+                                    'id': finding_id,
+                                    'method': 'GET',
+                                    'path': url,
+                                    'full_url': url,
+                                    'type': 'config',
+                                    'base_url': '',
+                                    'source_js': source_url,
+                                    'parameters': [],
+                                    'category': 'api_config',
+                                    'severity': 'info',
+                                    'line_number': line_num,
+                                }
+
+            # Extract GraphQL patterns
+            for match in _GRAPHQL_ENDPOINT_RE.finditer(content):
+                gql_url = match.group(1)
+                if _is_likely_path(gql_url):
+                    finding_id = hashlib.sha256(f"gql:{gql_url}".encode()).hexdigest()[:16]
+                    graphql_findings.append({
+                        'id': finding_id,
+                        'method': 'POST',
+                        'path': gql_url,
+                        'full_url': gql_url,
+                        'type': 'graphql',
+                        'source_js': source_url,
+                        'parameters': [],
+                        'category': 'graphql',
+                        'severity': 'medium',
+                    })
+
+            # Check for GraphQL introspection
+            if _GRAPHQL_INTROSPECTION_RE.search(content):
+                finding_id = hashlib.sha256(f"gql-intro:{source_url}".encode()).hexdigest()[:16]
+                graphql_findings.append({
+                    'id': finding_id,
+                    'method': 'POST',
+                    'path': '/graphql',
+                    'full_url': '',
+                    'type': 'graphql_introspection',
+                    'source_js': source_url,
+                    'parameters': [],
+                    'category': 'graphql',
+                    'severity': 'medium',
+                    'title': 'GraphQL introspection query detected',
+                })
+
+            # Extract WebSocket endpoints
+            for pattern in _WEBSOCKET_PATTERNS:
+                for match in pattern.finditer(content):
+                    ws_url = match.group(1)
+                    finding_id = hashlib.sha256(f"ws:{ws_url}".encode()).hexdigest()[:16]
+                    websocket_findings.append({
+                        'id': finding_id,
+                        'method': 'WS',
+                        'path': ws_url,
+                        'full_url': ws_url,
+                        'type': 'websocket',
+                        'source_js': source_url,
+                        'parameters': [],
+                        'category': 'websocket',
+                        'severity': 'info',
+                    })
+
+            # Extract router definitions
+            for pattern in _ROUTER_PATTERNS:
+                for match in pattern.finditer(content):
+                    route = match.group(1)
+                    if len(route) > 2 and route.startswith('/') and _is_likely_path(route):
+                        classification = _classify_path(route)
+                        key = f"ROUTE:{route}"
+                        if key not in all_endpoints:
+                            finding_id = hashlib.sha256(f"route:{route}".encode()).hexdigest()[:16]
+                            all_endpoints[key] = {
+                                'id': finding_id,
+                                'method': 'GET',
+                                'path': route,
+                                'full_url': route,
+                                'type': 'route',
+                                'base_url': '',
+                                'source_js': source_url,
+                                'parameters': [],
+                                'category': classification['category'],
+                                'severity': classification['severity'],
+                            }
+
+            # Search for custom keywords (pre-compiled outside the file loop)
+            for keyword, keyword_re in compiled_keywords:
+                for match in keyword_re.finditer(content):
+                    # Try to extract the surrounding URL context
+                    start = max(0, match.start() - 50)
+                    end = min(len(content), match.end() + 50)
+                    context = content[start:end]
+                    url_match = re.search(r'''['"]([^'"]*''' + re.escape(keyword) + r'''[^'"]*)['"]\s*''', context, re.IGNORECASE)
+                    if url_match:
+                        url = url_match.group(1)
+                        key = f"CUSTOM:{url}"
+                        if key not in all_endpoints:
+                            finding_id = hashlib.sha256(f"custom:{url}".encode()).hexdigest()[:16]
                             all_endpoints[key] = {
                                 'id': finding_id,
                                 'method': 'GET',
                                 'path': url,
                                 'full_url': url,
-                                'type': 'config',
+                                'type': 'custom_keyword',
                                 'base_url': '',
                                 'source_js': source_url,
                                 'parameters': [],
-                                'category': 'api_config',
-                                'severity': 'info',
-                                'line_number': line_num,
+                                'category': 'custom',
+                                'severity': 'medium',
                             }
-
-        # Extract GraphQL patterns
-        for match in _GRAPHQL_ENDPOINT_RE.finditer(content):
-            gql_url = match.group(1)
-            if _is_likely_path(gql_url):
-                finding_id = hashlib.sha256(f"gql:{gql_url}".encode()).hexdigest()[:16]
-                graphql_findings.append({
-                    'id': finding_id,
-                    'method': 'POST',
-                    'path': gql_url,
-                    'full_url': gql_url,
-                    'type': 'graphql',
-                    'source_js': source_url,
-                    'parameters': [],
-                    'category': 'graphql',
-                    'severity': 'medium',
-                })
-
-        # Check for GraphQL introspection
-        if _GRAPHQL_INTROSPECTION_RE.search(content):
-            finding_id = hashlib.sha256(f"gql-intro:{source_url}".encode()).hexdigest()[:16]
-            graphql_findings.append({
-                'id': finding_id,
-                'method': 'POST',
-                'path': '/graphql',
-                'full_url': '',
-                'type': 'graphql_introspection',
-                'source_js': source_url,
-                'parameters': [],
-                'category': 'graphql',
-                'severity': 'medium',
-                'title': 'GraphQL introspection query detected',
-            })
-
-        # Extract WebSocket endpoints
-        for pattern in _WEBSOCKET_PATTERNS:
-            for match in pattern.finditer(content):
-                ws_url = match.group(1)
-                finding_id = hashlib.sha256(f"ws:{ws_url}".encode()).hexdigest()[:16]
-                websocket_findings.append({
-                    'id': finding_id,
-                    'method': 'WS',
-                    'path': ws_url,
-                    'full_url': ws_url,
-                    'type': 'websocket',
-                    'source_js': source_url,
-                    'parameters': [],
-                    'category': 'websocket',
-                    'severity': 'info',
-                })
-
-        # Extract router definitions
-        for pattern in _ROUTER_PATTERNS:
-            for match in pattern.finditer(content):
-                route = match.group(1)
-                if len(route) > 2 and route.startswith('/') and _is_likely_path(route):
-                    classification = _classify_path(route)
-                    key = f"ROUTE:{route}"
-                    if key not in all_endpoints:
-                        finding_id = hashlib.sha256(f"route:{route}".encode()).hexdigest()[:16]
-                        all_endpoints[key] = {
-                            'id': finding_id,
-                            'method': 'GET',
-                            'path': route,
-                            'full_url': route,
-                            'type': 'route',
-                            'base_url': '',
-                            'source_js': source_url,
-                            'parameters': [],
-                            'category': classification['category'],
-                            'severity': classification['severity'],
-                        }
-
-        # Search for custom keywords (pre-compiled outside the file loop)
-        for keyword, keyword_re in compiled_keywords:
-            for match in keyword_re.finditer(content):
-                # Try to extract the surrounding URL context
-                start = max(0, match.start() - 50)
-                end = min(len(content), match.end() + 50)
-                context = content[start:end]
-                url_match = re.search(r'''['"]([^'"]*''' + re.escape(keyword) + r'''[^'"]*)['"]\s*''', context, re.IGNORECASE)
-                if url_match:
-                    url = url_match.group(1)
-                    key = f"CUSTOM:{url}"
-                    if key not in all_endpoints:
-                        finding_id = hashlib.sha256(f"custom:{url}".encode()).hexdigest()[:16]
-                        all_endpoints[key] = {
-                            'id': finding_id,
-                            'method': 'GET',
-                            'path': url,
-                            'full_url': url,
-                            'type': 'custom_keyword',
-                            'base_url': '',
-                            'source_js': source_url,
-                            'parameters': [],
-                            'category': 'custom',
-                            'severity': 'medium',
-                        }
+        except Exception as e:
+            print(f"[!][JsRecon] Endpoint extraction failed for {source_url or '?'}: {e}")
 
     # Combine all findings
     results = list(all_endpoints.values()) + graphql_findings + websocket_findings

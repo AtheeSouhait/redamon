@@ -139,27 +139,30 @@ def detect_dependency_confusion(
     package_sources = {}  # package_name -> list of source_urls
 
     for js_file in js_files:
-        url = js_file.get('url', '')
-        content = js_file.get('content', '')
+        try:
+            url = js_file.get('url', '')
+            content = js_file.get('content', '')
 
-        if not content:
-            continue
+            if not content:
+                continue
 
-        # Extract scoped packages
-        scoped = extract_scoped_packages(content)
-        for pkg in scoped:
-            if pkg not in package_sources:
-                package_sources[pkg] = []
-            if url not in package_sources[pkg]:
-                package_sources[pkg].append(url)
+            # Extract scoped packages
+            scoped = extract_scoped_packages(content)
+            for pkg in scoped:
+                if pkg not in package_sources:
+                    package_sources[pkg] = []
+                if url not in package_sources[pkg]:
+                    package_sources[pkg].append(url)
 
-        # Extract webpack packages
-        webpack_pkgs = extract_webpack_packages(content)
-        for pkg in webpack_pkgs:
-            if pkg.startswith('@') and pkg not in package_sources:
-                package_sources[pkg] = []
-            if pkg.startswith('@') and url not in package_sources.get(pkg, []):
-                package_sources.setdefault(pkg, []).append(url)
+            # Extract webpack packages
+            webpack_pkgs = extract_webpack_packages(content)
+            for pkg in webpack_pkgs:
+                if pkg.startswith('@') and pkg not in package_sources:
+                    package_sources[pkg] = []
+                if pkg.startswith('@') and url not in package_sources.get(pkg, []):
+                    package_sources.setdefault(pkg, []).append(url)
+        except Exception as e:
+            print(f"[!][JsRecon] Dependency extraction failed for {js_file.get('url', '?')}: {e}")
 
     # Add known internal packages that should be checked
     for pkg in known_internal:

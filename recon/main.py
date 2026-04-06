@@ -815,13 +815,18 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
         if not settings.get('HTTPX_ENABLED', True):
             print("\n[*][httpx] HTTP probing disabled -- skipping")
         else:
-            combined_result = run_http_probe(combined_result, output_file=output_file, settings=settings)
-            combined_result["metadata"]["modules_executed"].append("http_probe")
-            save_recon_file(combined_result, output_file)
+            try:
+                combined_result = run_http_probe(combined_result, output_file=output_file, settings=settings)
+                combined_result["metadata"]["modules_executed"].append("http_probe")
+                save_recon_file(combined_result, output_file)
 
-            _graph_update_bg("update_graph_from_http_probe", combined_result, USER_ID, PROJECT_ID)
-            if 'urlscan' in combined_result:
-                _graph_update_bg("update_graph_from_urlscan_enrichment", combined_result, USER_ID, PROJECT_ID)
+                _graph_update_bg("update_graph_from_http_probe", combined_result, USER_ID, PROJECT_ID)
+                if 'urlscan' in combined_result:
+                    _graph_update_bg("update_graph_from_urlscan_enrichment", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] http_probe failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["http_probe"] = str(e)
+                save_recon_file(combined_result, output_file)
 
     # Check if active scans should be skipped
     skip_active_scans, skip_reason = should_skip_active_scans(combined_result)
@@ -833,10 +838,15 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
         save_recon_file(combined_result, output_file)
     else:
         if "resource_enum" in SCAN_MODULES:
-            combined_result = run_resource_enum(combined_result, output_file=output_file, settings=settings)
-            combined_result["metadata"]["modules_executed"].append("resource_enum")
-            save_recon_file(combined_result, output_file)
-            _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
+            try:
+                combined_result = run_resource_enum(combined_result, output_file=output_file, settings=settings)
+                combined_result["metadata"]["modules_executed"].append("resource_enum")
+                save_recon_file(combined_result, output_file)
+                _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] resource_enum failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["resource_enum"] = str(e)
+                save_recon_file(combined_result, output_file)
 
     # GROUP 5b -- JS Recon (runs after resource_enum, before vuln_scan;
     # runs even when active scans are skipped -- uploaded files don't need live targets)
@@ -852,21 +862,33 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
 
     if not skip_active_scans:
         if "vuln_scan" in SCAN_MODULES:
-            combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=settings)
-            combined_result["metadata"]["modules_executed"].append("vuln_scan")
-            save_recon_file(combined_result, output_file)
+            try:
+                combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=settings)
+                combined_result["metadata"]["modules_executed"].append("vuln_scan")
+                save_recon_file(combined_result, output_file)
 
-            if settings.get('MITRE_ENABLED', True):
-                combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=settings)
-            save_recon_file(combined_result, output_file)
-            _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
+                if settings.get('MITRE_ENABLED', True):
+                    try:
+                        combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=settings)
+                    except Exception as e:
+                        print(f"[!][Pipeline] mitre_enrichment failed: {e}")
+                        combined_result["metadata"].setdefault("phase_errors", {})["mitre_enrichment"] = str(e)
+                save_recon_file(combined_result, output_file)
+                _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] vuln_scan failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["vuln_scan"] = str(e)
+                save_recon_file(combined_result, output_file)
 
-    # External Domains — aggregate from all sources and persist
-    ext_domains = _aggregate_external_domains(combined_result)
-    if ext_domains:
-        combined_result["external_domains_aggregated"] = ext_domains
-        save_recon_file(combined_result, output_file)
-        _graph_update_bg("update_graph_from_external_domains", combined_result, USER_ID, PROJECT_ID)
+    # External Domains -- aggregate from all sources and persist
+    try:
+        ext_domains = _aggregate_external_domains(combined_result)
+        if ext_domains:
+            combined_result["external_domains_aggregated"] = ext_domains
+            save_recon_file(combined_result, output_file)
+            _graph_update_bg("update_graph_from_external_domains", combined_result, USER_ID, PROJECT_ID)
+    except Exception as e:
+        print(f"[!][Pipeline] external_domains aggregation failed: {e}")
 
     # Wait for all background graph DB updates to finish
     _graph_wait_all()
@@ -1273,14 +1295,19 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
         if not _settings.get('HTTPX_ENABLED', True):
             print("\n[*][httpx] HTTP probing disabled -- skipping")
         else:
-            combined_result = run_http_probe(combined_result, output_file=output_file, settings=_settings)
-            combined_result["metadata"]["modules_executed"].append("http_probe")
-            save_recon_file(combined_result, output_file)
+            try:
+                combined_result = run_http_probe(combined_result, output_file=output_file, settings=_settings)
+                combined_result["metadata"]["modules_executed"].append("http_probe")
+                save_recon_file(combined_result, output_file)
 
-            # Background graph updates
-            _graph_update_bg("update_graph_from_http_probe", combined_result, USER_ID, PROJECT_ID)
-            if 'urlscan' in combined_result:
-                _graph_update_bg("update_graph_from_urlscan_enrichment", combined_result, USER_ID, PROJECT_ID)
+                # Background graph updates
+                _graph_update_bg("update_graph_from_http_probe", combined_result, USER_ID, PROJECT_ID)
+                if 'urlscan' in combined_result:
+                    _graph_update_bg("update_graph_from_urlscan_enrichment", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] http_probe failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["http_probe"] = str(e)
+                save_recon_file(combined_result, output_file)
 
     # Check if we should skip active scanning modules (resource_enum, vuln_scan)
     # These require live targets from http_probe to work
@@ -1297,10 +1324,15 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     else:
         # GROUP 5 — Resource Enum (already parallel internally: Katana || GAU || Kiterunner)
         if "resource_enum" in SCAN_MODULES:
-            combined_result = run_resource_enum(combined_result, output_file=output_file, settings=_settings)
-            combined_result["metadata"]["modules_executed"].append("resource_enum")
-            save_recon_file(combined_result, output_file)
-            _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
+            try:
+                combined_result = run_resource_enum(combined_result, output_file=output_file, settings=_settings)
+                combined_result["metadata"]["modules_executed"].append("resource_enum")
+                save_recon_file(combined_result, output_file)
+                _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] resource_enum failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["resource_enum"] = str(e)
+                save_recon_file(combined_result, output_file)
 
     # GROUP 5b — JS Recon (runs after resource_enum, before vuln_scan;
     # runs even when active scans are skipped -- uploaded files don't need live targets)
@@ -1317,22 +1349,34 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     if not skip_active_scans:
         # GROUP 6 — Vuln Scan + MITRE (sequential, Nuclei internally parallel)
         if "vuln_scan" in SCAN_MODULES:
-            combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=_settings)
-            combined_result["metadata"]["modules_executed"].append("vuln_scan")
-            save_recon_file(combined_result, output_file)
+            try:
+                combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=_settings)
+                combined_result["metadata"]["modules_executed"].append("vuln_scan")
+                save_recon_file(combined_result, output_file)
 
-            if _settings.get('MITRE_ENABLED', True):
-                combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=_settings)
-            save_recon_file(combined_result, output_file)
+                if _settings.get('MITRE_ENABLED', True):
+                    try:
+                        combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=_settings)
+                    except Exception as e:
+                        print(f"[!][Pipeline] mitre_enrichment failed: {e}")
+                        combined_result["metadata"].setdefault("phase_errors", {})["mitre_enrichment"] = str(e)
+                save_recon_file(combined_result, output_file)
 
-            _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
+                _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
+            except Exception as e:
+                print(f"[!][Pipeline] vuln_scan failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["vuln_scan"] = str(e)
+                save_recon_file(combined_result, output_file)
 
     # External Domains — aggregate from all sources and persist
-    ext_domains = _aggregate_external_domains(combined_result)
-    if ext_domains:
-        combined_result["external_domains_aggregated"] = ext_domains
-        save_recon_file(combined_result, output_file)
-        _graph_update_bg("update_graph_from_external_domains", combined_result, USER_ID, PROJECT_ID)
+    try:
+        ext_domains = _aggregate_external_domains(combined_result)
+        if ext_domains:
+            combined_result["external_domains_aggregated"] = ext_domains
+            save_recon_file(combined_result, output_file)
+            _graph_update_bg("update_graph_from_external_domains", combined_result, USER_ID, PROJECT_ID)
+    except Exception as e:
+        print(f"[!][Pipeline] external_domains aggregation failed: {e}")
 
     # Wait for all background graph DB updates to finish before returning
     _graph_wait_all()

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.2] - 2026-04-06
+
+### Fixed
+
+- **Pipeline crash resilience** -- wrapped all recon pipeline phase calls (`run_http_probe`, `run_resource_enum`, `run_vuln_scan`, `run_mitre_enrichment`) in try/except in both domain and IP mode. A failing phase now logs the error, records it in `metadata.phase_errors`, and continues to the next phase instead of killing the entire pipeline
+- **JS Recon analyzer crash isolation** -- added per-file try/except in all JS Recon analyzer loops (`run_patterns`, `run_framework_analysis`, `discover_and_analyze_sourcemaps`, `detect_dependency_confusion`, `extract_endpoints`, `detect_frameworks`, `detect_dom_sinks`). One malformed JS file no longer crashes the entire analyzer batch
+- **Docker API 500 crash** -- added `APIError` handling alongside existing `NotFound` catches in all four container status functions (`get_status`, `get_gvm_status`, `get_github_hunt_status`, `get_trufflehog_status`) and all four SSE log streaming functions. A Docker daemon 500 error during container inspection no longer crashes the SSE stream with an unhandled `ExceptionGroup`
+
+### Added
+
+- **Crash resilience test suite** -- new `recon/tests/test_crash_resilience.py` with 17 tests (12 local + 5 Docker-dependent) verifying that poisoned/malformed input in any analyzer batch is caught, logged, and skipped without affecting other items in the batch
+
+---
+
 ## [3.6.1] - 2026-04-05
 
 ### Fixed

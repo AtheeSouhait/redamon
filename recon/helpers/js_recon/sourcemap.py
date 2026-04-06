@@ -210,70 +210,73 @@ def discover_and_analyze_sourcemaps(
     timeout = max(settings.get('JS_RECON_TIMEOUT', 900) // 60, 10)
 
     for js_file in js_files:
-        js_url = js_file.get('url', '')
-        content = js_file.get('content', '')
-        headers = js_file.get('headers', {})
+        try:
+            js_url = js_file.get('url', '')
+            content = js_file.get('content', '')
+            headers = js_file.get('headers', {})
 
-        if not js_url:
-            continue
+            if not js_url:
+                continue
 
-        map_url = None
-        discovery_method = None
+            map_url = None
+            discovery_method = None
 
-        # Method 1: Check sourceMappingURL comment in JS content
-        map_ref = check_sourcemap_comment(content)
-        if map_ref:
-            map_url = _resolve_map_url(js_url, map_ref)
-            discovery_method = 'comment'
+            # Method 1: Check sourceMappingURL comment in JS content
+            map_ref = check_sourcemap_comment(content)
+            if map_ref:
+                map_url = _resolve_map_url(js_url, map_ref)
+                discovery_method = 'comment'
 
-        # Method 2: Check HTTP response headers
-        if not map_url:
-            header_ref = check_sourcemap_header(headers)
-            if header_ref:
-                map_url = _resolve_map_url(js_url, header_ref)
-                discovery_method = 'header'
+            # Method 2: Check HTTP response headers
+            if not map_url:
+                header_ref = check_sourcemap_header(headers)
+                if header_ref:
+                    map_url = _resolve_map_url(js_url, header_ref)
+                    discovery_method = 'header'
 
-        # Method 3: Probe common paths
-        if not map_url:
-            probe_urls = _build_probe_urls(js_url, custom_paths)
-            for probe_url in probe_urls:
-                if probe_url in checked_map_urls:
-                    continue
-                checked_map_urls.add(probe_url)
-                map_data = _fetch_sourcemap(probe_url, timeout=timeout)
+            # Method 3: Probe common paths
+            if not map_url:
+                probe_urls = _build_probe_urls(js_url, custom_paths)
+                for probe_url in probe_urls:
+                    if probe_url in checked_map_urls:
+                        continue
+                    checked_map_urls.add(probe_url)
+                    map_data = _fetch_sourcemap(probe_url, timeout=timeout)
+                    if map_data:
+                        map_url = probe_url
+                        discovery_method = 'probe'
+                        # Analyze directly since we already fetched it
+                        result = analyze_sourcemap(map_data, map_url, js_url, scan_content_func)
+                        result['discovery_method'] = discovery_method
+                        findings.append(result)
+                        break
+                continue  # Skip the fetch below if we already probed
+
+            # Fetch and analyze the discovered source map
+            if map_url and map_url not in checked_map_urls:
+                checked_map_urls.add(map_url)
+                map_data = _fetch_sourcemap(map_url, timeout=timeout)
                 if map_data:
-                    map_url = probe_url
-                    discovery_method = 'probe'
-                    # Analyze directly since we already fetched it
                     result = analyze_sourcemap(map_data, map_url, js_url, scan_content_func)
                     result['discovery_method'] = discovery_method
                     findings.append(result)
-                    break
-            continue  # Skip the fetch below if we already probed
-
-        # Fetch and analyze the discovered source map
-        if map_url and map_url not in checked_map_urls:
-            checked_map_urls.add(map_url)
-            map_data = _fetch_sourcemap(map_url, timeout=timeout)
-            if map_data:
-                result = analyze_sourcemap(map_data, map_url, js_url, scan_content_func)
-                result['discovery_method'] = discovery_method
-                findings.append(result)
-            else:
-                # Source map referenced but not accessible
-                finding_id = hashlib.sha256(f"srcmap-ref:{js_url}:{map_url}".encode()).hexdigest()[:16]
-                findings.append({
-                    'id': finding_id,
-                    'js_url': js_url,
-                    'map_url': map_url,
-                    'accessible': False,
-                    'discovery_method': discovery_method,
-                    'files_count': 0,
-                    'source_files': [],
-                    'secrets_in_source': 0,
-                    'secrets': [],
-                    'severity': 'info',
-                    'finding_type': 'source_map_reference',
-                })
+                else:
+                    # Source map referenced but not accessible
+                    finding_id = hashlib.sha256(f"srcmap-ref:{js_url}:{map_url}".encode()).hexdigest()[:16]
+                    findings.append({
+                        'id': finding_id,
+                        'js_url': js_url,
+                        'map_url': map_url,
+                        'accessible': False,
+                        'discovery_method': discovery_method,
+                        'files_count': 0,
+                        'source_files': [],
+                        'secrets_in_source': 0,
+                        'secrets': [],
+                        'severity': 'info',
+                        'finding_type': 'source_map_reference',
+                    })
+        except Exception as e:
+            print(f"[!][JsRecon] Error processing sourcemap for {js_file.get('url', '?')}: {e}")
 
     return findings

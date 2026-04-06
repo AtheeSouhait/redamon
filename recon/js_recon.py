@@ -288,12 +288,15 @@ def _run_analysis(js_files: list, settings: dict) -> dict:
             def run_patterns():
                 all_findings = []
                 for js_file in js_files:
-                    findings = scan_js_content(
-                        js_file['content'], js_file['url'],
-                        custom_patterns=custom_patterns,
-                        min_confidence=min_confidence,
-                    )
-                    all_findings.extend(findings)
+                    try:
+                        findings = scan_js_content(
+                            js_file['content'], js_file['url'],
+                            custom_patterns=custom_patterns,
+                            min_confidence=min_confidence,
+                        )
+                        all_findings.extend(findings)
+                    except Exception as e:
+                        print(f"[!][JsRecon] Pattern scan failed for {js_file.get('url', '?')}: {e}")
                 return all_findings
             futures['patterns'] = executor.submit(run_patterns)
 
@@ -320,23 +323,26 @@ def _run_analysis(js_files: list, settings: dict) -> dict:
         def run_framework_analysis():
             fw_results = {'frameworks': [], 'dom_sinks': [], 'dev_comments': []}
             for js_file in js_files:
-                content = js_file['content']
-                url = js_file['url']
+                try:
+                    content = js_file['content']
+                    url = js_file['url']
 
-                if settings.get('JS_RECON_FRAMEWORK_DETECT', True):
-                    fw_results['frameworks'].extend(
-                        detect_frameworks(content, url, custom_signatures=custom_frameworks)
-                    )
+                    if settings.get('JS_RECON_FRAMEWORK_DETECT', True):
+                        fw_results['frameworks'].extend(
+                            detect_frameworks(content, url, custom_signatures=custom_frameworks)
+                        )
 
-                if settings.get('JS_RECON_DOM_SINKS', True):
-                    fw_results['dom_sinks'].extend(
-                        detect_dom_sinks(content, url)
-                    )
+                    if settings.get('JS_RECON_DOM_SINKS', True):
+                        fw_results['dom_sinks'].extend(
+                            detect_dom_sinks(content, url)
+                        )
 
-                if settings.get('JS_RECON_DEV_COMMENTS', True):
-                    fw_results['dev_comments'].extend(
-                        detect_dev_comments(content, url)
-                    )
+                    if settings.get('JS_RECON_DEV_COMMENTS', True):
+                        fw_results['dev_comments'].extend(
+                            detect_dev_comments(content, url)
+                        )
+                except Exception as e:
+                    print(f"[!][JsRecon] Framework analysis failed for {js_file.get('url', '?')}: {e}")
             return fw_results
         futures['framework'] = executor.submit(run_framework_analysis)
 

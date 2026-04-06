@@ -194,30 +194,33 @@ def detect_frameworks(
                 continue
 
     for sig in signatures:
-        if sig['name'] in detected_names:
-            continue
+        try:
+            if sig['name'] in detected_names:
+                continue
 
-        for pattern in sig['patterns']:
-            if pattern.search(content):
-                # Framework detected -- try to extract version
-                version = None
-                if sig['version_re']:
-                    ver_match = sig['version_re'].search(content)
-                    if ver_match:
-                        version = ver_match.group(1)
+            for pattern in sig['patterns']:
+                if pattern.search(content):
+                    # Framework detected -- try to extract version
+                    version = None
+                    if sig['version_re']:
+                        ver_match = sig['version_re'].search(content)
+                        if ver_match:
+                            version = ver_match.group(1)
 
-                detected_names.add(sig['name'])
-                finding_id = hashlib.sha256(f"fw:{sig['name']}:{source_url}".encode()).hexdigest()[:16]
-                findings.append({
-                    'id': finding_id,
-                    'finding_type': 'framework',
-                    'name': sig['name'],
-                    'version': version,
-                    'source_url': source_url,
-                    'severity': 'info',
-                    'confidence': 'high' if version else 'medium',
-                })
-                break
+                    detected_names.add(sig['name'])
+                    finding_id = hashlib.sha256(f"fw:{sig['name']}:{source_url}".encode()).hexdigest()[:16]
+                    findings.append({
+                        'id': finding_id,
+                        'finding_type': 'framework',
+                        'name': sig['name'],
+                        'version': version,
+                        'source_url': source_url,
+                        'severity': 'info',
+                        'confidence': 'high' if version else 'medium',
+                    })
+                    break
+        except Exception as e:
+            print(f"[!][JsRecon] Framework detection failed for sig '{sig.get('name', '?')}': {e}")
 
     return findings
 
@@ -234,26 +237,29 @@ def detect_dom_sinks(content: str, source_url: str) -> list:
     seen = set()
 
     for line_num, line in enumerate(lines, 1):
-        for pattern, sink_type, severity, description in DOM_SINK_PATTERNS:
-            if pattern.search(line):
-                # Deduplicate by sink type + source file
-                key = f"{sink_type}:{source_url}:{line_num}"
-                if key in seen:
-                    continue
-                seen.add(key)
+        try:
+            for pattern, sink_type, severity, description in DOM_SINK_PATTERNS:
+                if pattern.search(line):
+                    # Deduplicate by sink type + source file
+                    key = f"{sink_type}:{source_url}:{line_num}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
 
-                finding_id = hashlib.sha256(f"sink:{key}".encode()).hexdigest()[:16]
-                findings.append({
-                    'id': finding_id,
-                    'finding_type': 'dom_sink',
-                    'type': sink_type,
-                    'pattern': line.strip()[:200],
-                    'description': description,
-                    'source_url': source_url,
-                    'line': line_num,
-                    'severity': severity,
-                    'confidence': 'medium',
-                })
+                    finding_id = hashlib.sha256(f"sink:{key}".encode()).hexdigest()[:16]
+                    findings.append({
+                        'id': finding_id,
+                        'finding_type': 'dom_sink',
+                        'type': sink_type,
+                        'pattern': line.strip()[:200],
+                        'description': description,
+                        'source_url': source_url,
+                        'line': line_num,
+                        'severity': severity,
+                        'confidence': 'medium',
+                    })
+        except Exception as e:
+            print(f"[!][JsRecon] DOM sink detection failed at line {line_num} in {source_url}: {e}")
 
     return findings
 
