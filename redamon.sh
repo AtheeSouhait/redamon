@@ -298,7 +298,22 @@ _kb_choose_profile() {
         return
     fi
 
-    # CPU-only: show explanation and let user choose
+    # CPU-only with existing FAISS data: skip the interactive prompt.
+    # The manifest dedup will skip unchanged chunks anyway, so a re-run
+    # finishes in seconds. To upgrade the profile, use:
+    #   ./redamon.sh kb build lite
+    #
+    # Note: FAISS files are created by Docker (root-owned, mode 600), so
+    # we cannot read their contents as a normal user. Use -s (non-zero size)
+    # instead of trying to parse the JSON.
+    local faiss_index="$SCRIPT_DIR/knowledge_base/data/index.faiss"
+    if [[ -s "$faiss_index" ]]; then
+        info "KB Embedding: CPU mode (FAISS index exists, refreshing unchanged chunks)" >&2
+        echo "cpu-lite"
+        return
+    fi
+
+    # First-time CPU-only: show explanation and let user choose
     echo ""                                                            >&2
     echo "==========================================================" >&2
     echo "  Knowledge Base -- Embedding Configuration"                 >&2
@@ -462,8 +477,17 @@ cmd_install() {
         docker compose up -d --force-recreate $CORE_SERVICES
     fi
 
+    # Show "ready" banner before the KB prompt so the user knows the app
+    # is already usable (they can Ctrl+C the KB question and start working).
+    echo ""
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo -e "  ${GREEN}${BOLD}  RedAmon v${version} is ready!${NC}"
+    echo -e "  ${GREEN}${BOLD}  Open ${CYAN}http://localhost:3000${GREEN}${BOLD} in your browser${NC}"
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo ""
+
     # Bootstrap the Knowledge Base if enabled (reads KB_ENABLED from kb_config.yaml).
-    # Install always runs a fresh bootstrap — first-time setup populates FAISS +
+    # Install always runs a fresh bootstrap -- first-time setup populates FAISS +
     # Neo4j from committed caches. Graceful failure: if bootstrap fails
     # (network, missing deps, etc.) the agent still starts with an empty KB
     # and the user gets a clear retry command.
@@ -483,9 +507,6 @@ cmd_install() {
     fi
 
     echo ""
-    success "RedAmon v${version} installed and running!"
-    echo ""
-    echo -e "  ${CYAN}Webapp:${NC}  http://localhost:3000"
     echo -e "  ${CYAN}Status:${NC}  ./redamon.sh status"
     echo ""
     echo -e "  ${YELLOW}If RedAmon is useful to you, a GitHub star helps others find the project:${NC}"
@@ -681,8 +702,7 @@ ensure_tool_images() {
 
 cmd_up_dev() {
     local gvm_flag="false"
-    shift || true  # consume 'dev'
-    if [[ "${1:-}" == "--gvm" ]]; then
+    if is_gvm_enabled; then
         gvm_flag="true"
     fi
     if is_skipkbase; then
@@ -702,7 +722,16 @@ cmd_up_dev() {
         docker compose $DEV_COMPOSE up -d $CORE_SERVICES
     fi
 
-    # Refresh the Knowledge Base if enabled (behavior B — always run ingest,
+    # Show "ready" banner before the KB prompt so the user knows the app
+    # is already usable (they can Ctrl+C the KB question and start working).
+    echo ""
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo -e "  ${GREEN}${BOLD}  RedAmon DEV is ready!${NC}"
+    echo -e "  ${GREEN}${BOLD}  Open ${CYAN}http://localhost:3000${GREEN}${BOLD} in your browser (hot-reload)${NC}"
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo ""
+
+    # Refresh the Knowledge Base if enabled (behavior B -- always run ingest,
     # trust manifest dedup). Same rationale as cmd_up. Dev mode still benefits
     # from fresh KB on restart.
     if is_kb_enabled; then
@@ -717,9 +746,6 @@ cmd_up_dev() {
             warn "Retry with: ./redamon.sh kb build ${kb_profile}"
         fi
     fi
-
-    echo ""
-    success "RedAmon DEV is running at http://localhost:3000 (hot-reload enabled)"
 }
 
 cmd_up() {
@@ -745,12 +771,21 @@ cmd_up() {
         docker compose up -d --force-recreate $CORE_SERVICES
     fi
 
+    # Show "ready" banner before the KB prompt so the user knows the app
+    # is already usable (they can Ctrl+C the KB question and start working).
+    echo ""
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo -e "  ${GREEN}${BOLD}  RedAmon is ready!${NC}"
+    echo -e "  ${GREEN}${BOLD}  Open ${CYAN}http://localhost:3000${GREEN}${BOLD} in your browser${NC}"
+    echo -e "  ${GREEN}${BOLD}==========================================================${NC}"
+    echo ""
+
     # Refresh the Knowledge Base if enabled. Behavior B: always run the ingest
     # pipeline on up. The two-layer dedup (file hashes + manifest) skips
     # unchanged work, and NVD uses the `since` mechanism for incremental
-    # updates — so a routine restart is ~20-30s even though it touches the
+    # updates -- so a routine restart is ~20-30s even though it touches the
     # network. First-ever up is ~2-3 min (full NVD fetch + embedding).
-    # Fresh-clone scenario: no FAISS on disk → full bootstrap.
+    # Fresh-clone scenario: no FAISS on disk -> full bootstrap.
     if is_kb_enabled; then
         echo ""
         local kb_profile
@@ -763,9 +798,6 @@ cmd_up() {
             warn "Retry with: ./redamon.sh kb build ${kb_profile}"
         fi
     fi
-
-    echo ""
-    success "RedAmon is running at http://localhost:3000"
 }
 
 cmd_down() {
@@ -1054,8 +1086,7 @@ cmd_help() {
     echo -e "  ${GREEN}install --skipkbase${NC}  Build without Knowledge Base (~4.4 GB lighter)"
     echo -e "  ${GREEN}update${NC}           Pull latest version and smart-rebuild changed services"
     echo -e "  ${GREEN}up${NC}               Start services"
-    echo -e "  ${GREEN}up dev${NC}           Start in dev mode (hot-reload, auto-builds tool images)"
-    echo -e "  ${GREEN}up dev --gvm${NC}     Start in dev mode with GVM/OpenVAS"
+    echo -e "  ${GREEN}up dev${NC}           Start in dev mode (hot-reload, auto-detects GVM mode)"
     echo -e "  ${GREEN}down${NC}             Stop services (preserves data)"
     echo -e "  ${GREEN}clean${NC}            Remove containers and images (keeps data)"
     echo -e "  ${GREEN}purge${NC}            Remove everything including all data"
@@ -1069,8 +1100,7 @@ cmd_help() {
     echo "  ./redamon.sh install --skipkbase   # Lightweight (Tavily-only, no KB)"
     echo "  ./redamon.sh update           # Update to latest version"
     echo "  ./redamon.sh up               # Start after reboot"
-    echo "  ./redamon.sh up dev           # Dev mode with hot-reload"
-    echo "  ./redamon.sh up dev --gvm     # Dev mode + GVM"
+    echo "  ./redamon.sh up dev           # Dev mode with hot-reload (auto-detects GVM)"
     echo "  ./redamon.sh kb build lite    # Build Knowledge Base"
     echo "  ./redamon.sh kb update        # Refresh all KB sources"
     echo "  ./redamon.sh kb stats         # Show KB chunk counts"
@@ -1088,7 +1118,7 @@ case "${1:-help}" in
     update)  cmd_update ;;
     up)
         if [[ "${2:-}" == "dev" ]]; then
-            cmd_up_dev "${@:2}"
+            cmd_up_dev
         else
             cmd_up
         fi

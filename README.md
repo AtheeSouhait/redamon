@@ -170,8 +170,7 @@ All lifecycle management is handled by a single script:
 | `./redamon.sh install --skipkbase` | Build without Knowledge Base (~4.4 GB lighter, Tavily-only) |
 | **`./redamon.sh update`** | **Pull latest version, smart-rebuild only changed services** |
 | `./redamon.sh up` | Start services (auto-detects GVM mode) |
-| `./redamon.sh up dev` | Start in dev mode with hot-reload |
-| `./redamon.sh up dev --gvm` | Dev mode with GVM/OpenVAS |
+| `./redamon.sh up dev` | Start in dev mode with hot-reload (auto-detects GVM mode) |
 | `./redamon.sh down` | Stop services (preserves data) |
 | `./redamon.sh status` | Show running services, version, GVM mode |
 | `./redamon.sh clean` | Remove containers + images, keep data |
@@ -197,8 +196,7 @@ The webapp also checks for updates automatically and shows a notification in the
 For contributors and active development with **Next.js fast refresh**:
 
 ```bash
-./redamon.sh up dev           # without GVM
-./redamon.sh up dev --gvm     # with GVM/OpenVAS
+./redamon.sh up dev           # auto-detects GVM mode from install
 ```
 
 Tool images are built automatically on first run if they don't exist yet. The dev override swaps the production webapp image for a dev container with your source code volume-mounted. Every file save triggers instant hot-reload in the browser.
