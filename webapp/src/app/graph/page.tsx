@@ -280,6 +280,7 @@ export default function GraphPage() {
     activeRuns: activePartialRecons,
     isAnyRunning: isPartialReconRunning,
     stopPartialRecon,
+    refetch: refetchPartialReconStatuses,
   } = useMultiPartialReconStatus({
     projectId,
     enabled: !!projectId,
@@ -299,7 +300,10 @@ export default function GraphPage() {
     projectId,
     activeRunId: activePartialReconRunId,
     onLog: triggerGraphRefetch,
-    onComplete: triggerGraphRefetch,
+    onComplete: () => {
+      triggerGraphRefetch()
+      refetchPartialReconStatuses()
+    },
   })
 
   // GVM status hook
@@ -1327,7 +1331,7 @@ export default function GraphPage() {
         totalPhases={3}
       />
 
-      {activePartialRecons.map(run => (
+      {allPartialReconRuns.map(run => (
         <ReconLogsDrawer
           key={run.run_id}
           isOpen={activeLogsDrawer === `partialRecon:${run.run_id}`}

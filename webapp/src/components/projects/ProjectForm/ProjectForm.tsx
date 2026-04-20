@@ -239,7 +239,11 @@ export function ProjectForm({
   const isReconBusy = isReconRunning || isReconPaused
 
   // Track partial recon runs to show spinner on running tool nodes
-  const { activeRuns: activePartialRecons } = useMultiPartialReconStatus({
+  const {
+    runs: allPartialReconRuns,
+    activeRuns: activePartialRecons,
+    refetch: refetchPartialReconStatuses,
+  } = useMultiPartialReconStatus({
     projectId: mode === 'edit' ? (projectId ?? null) : null,
     enabled: mode === 'edit',
   })
@@ -249,8 +253,10 @@ export function ProjectForm({
       .map(r => r.tool_id)
   )
 
-  // Find the active run for the logs drawer (fall back to local state before polling picks it up)
-  const activePartialLogsRun = activePartialRecons.find(r => r.run_id === activePartialLogsRunId)
+  // Find the active run for the logs drawer from the full run list so the drawer
+  // keeps showing final status (completed/error) until the backend auto-cleans it.
+  // Fall back to local state for the brief window before the first poll picks it up.
+  const activePartialLogsRun = allPartialReconRuns.find(r => r.run_id === activePartialLogsRunId)
     ?? (localPartialRun?.run_id === activePartialLogsRunId ? localPartialRun : null)
 
   // SSE logs for the currently visible partial recon drawer
@@ -261,6 +267,7 @@ export function ProjectForm({
   } = useMultiPartialReconSSE({
     projectId: projectId ?? null,
     activeRunId: activePartialLogsRunId,
+    onComplete: () => { refetchPartialReconStatuses() },
   })
 
   // Fetch defaults from backend on mount (only for create mode)

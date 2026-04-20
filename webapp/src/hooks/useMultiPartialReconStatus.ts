@@ -19,6 +19,7 @@ interface UseMultiPartialReconStatusReturn {
   error: string | null
   startPartialRecon: (params: PartialReconParams) => Promise<PartialReconState | null>
   stopPartialRecon: (runId: string) => Promise<PartialReconState | null>
+  refetch: () => Promise<void>
 }
 
 const DEFAULT_POLLING_INTERVAL = 5000
@@ -202,6 +203,7 @@ export function useMultiPartialReconStatus({
     error,
     startPartialRecon,
     stopPartialRecon,
+    refetch: fetchAllStatuses,
   }
 }
 
