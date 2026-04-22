@@ -385,7 +385,6 @@ def _run_analysis(js_files: list, settings: dict) -> dict:
                                 'potential_idor': True,
                             })
                         elif cat == 'infrastructure':
-                            # Cloud assets (S3, GCP, Azure)
                             if 'S3' in fname or 'GCP' in fname or 'Azure' in fname:
                                 results['cloud_assets'].append({
                                     'provider': 'aws' if 'S3' in fname else ('gcp' if 'GCP' in fname else 'azure'),
@@ -393,7 +392,8 @@ def _run_analysis(js_files: list, settings: dict) -> dict:
                                     'url': finding.get('matched_text', ''),
                                     'source_url': finding.get('source_url', ''),
                                 })
-                            results['secrets'].append(finding)
+                            else:
+                                results['secrets'].append(finding)
                         else:
                             results['secrets'].append(finding)
 

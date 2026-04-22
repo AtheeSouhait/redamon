@@ -315,7 +315,7 @@ def validate_telegram(matched_text: str, timeout: int = 5) -> dict:
 
 def validate_discord(matched_text: str, timeout: int = 5) -> dict:
     """Validate Discord token via GET /api/v10/users/@me."""
-    token = re.search(r'([MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27})', matched_text)
+    token = re.search(r'([MN][A-Za-z\d]{23,}\.[\w-]{4,7}\.[\w-]{27,})', matched_text)
     if not token:
         return {'valid': False, 'scope': '', 'info': '', 'error': 'no_token_found'}
 
@@ -411,18 +411,17 @@ def validate_openai(matched_text: str, timeout: int = 5) -> dict:
 
 def validate_twilio_format(matched_text: str, timeout: int = 5) -> dict:
     """Format validation for Twilio Account SID (no API call)."""
-    sid = re.search(r'AC([0-9a-f]{32})', matched_text)
+    sid = re.search(r'AC([a-zA-Z0-9]{32})', matched_text)
     if not sid:
-        return {'valid': False, 'scope': '', 'info': 'Not valid hex format for Twilio SID', 'error': 'format_invalid'}
-    hex_part = sid.group(1)
-    # Check entropy -- real SIDs are random hex
+        return {'valid': False, 'scope': '', 'info': 'Not valid format for Twilio SID', 'error': 'format_invalid'}
+    sid_part = sid.group(1)
     freq: dict[str, int] = {}
-    for c in hex_part:
+    for c in sid_part:
         freq[c] = freq.get(c, 0) + 1
-    entropy = -sum((count / len(hex_part)) * math.log2(count / len(hex_part)) for count in freq.values())
+    entropy = -sum((count / len(sid_part)) * math.log2(count / len(sid_part)) for count in freq.values())
     if entropy < 3.0:
         return {'valid': False, 'scope': '', 'info': f'Low entropy ({entropy:.1f}) suggests non-secret data', 'error': 'format_invalid'}
-    return {'valid': False, 'scope': '', 'info': 'Format matches Twilio SID structure (hex, high entropy)', 'error': 'format_only'}
+    return {'valid': False, 'scope': '', 'info': 'Format matches Twilio SID structure (high entropy)', 'error': 'format_only'}
 
 
 def validate_twitter_format(matched_text: str, timeout: int = 5) -> dict:

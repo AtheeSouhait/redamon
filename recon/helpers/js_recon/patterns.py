@@ -1,10 +1,12 @@
 """
 JS Recon Secret Detection Patterns
 
-90+ hardcoded regex patterns for detecting secrets, credentials, tokens,
+240+ hardcoded regex patterns for detecting secrets, credentials, tokens,
 infrastructure URLs, and sensitive information in JavaScript files.
 
-Superset of github_secret_hunt SECRET_PATTERNS with 30+ JS-specific additions.
+Covers all major cloud providers, AI/LLM services, payment processors,
+observability tools, CI/CD systems, and SaaS platforms. Superset of
+github_secret_hunt SECRET_PATTERNS with JS-specific additions and validators.
 """
 
 import re
@@ -23,6 +25,8 @@ _RAW_PATTERNS = [
     ("GCP API Key", r"AIza[0-9A-Za-z\-_]{35}", "critical", "high", "cloud", "validate_google_maps"),
     ("GCP OAuth Client", r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com", "high", "high", "cloud", None),
     ("GCP Service Account", r"\"type\":\s*\"service_account\"", "critical", "high", "cloud", None),
+    ("Google OAuth Token", r"ya29\.[0-9A-Za-z\-_]+", "high", "high", "cloud", None),
+    ("Google reCAPTCHA Key", r"6L[0-9A-Za-z-_]{38}", "low", "medium", "cloud", None),
     ("Firebase URL", r"https://[a-z0-9-]+\.firebaseio\.com", "high", "high", "cloud", "validate_firebase"),
     ("Firebase API Key", r"(?i)firebase[^\"']{0,50}['\"][A-Za-z0-9_]{30,}['\"]", "high", "medium", "cloud", None),
     ("Firebase Storage", r"https://[a-z0-9-]+\.firebasestorage\.app", "medium", "high", "cloud", None),
@@ -32,8 +36,15 @@ _RAW_PATTERNS = [
     ("Azure AD Client Secret", r"(?i)azure.*client.?secret.*['\"][a-zA-Z0-9~._-]{34,}['\"]", "critical", "high", "cloud", None),
     ("DigitalOcean Token", r"dop_v1_[a-f0-9]{64}", "critical", "high", "cloud", "validate_digitalocean"),
     ("DigitalOcean OAuth", r"doo_v1_[a-f0-9]{64}", "critical", "high", "cloud", None),
+    ("DigitalOcean Refresh Token", r"dor_v1_[a-f0-9]{64}", "critical", "high", "cloud", None),
     ("Cloudflare API Key", r"(?i)cloudflare.*['\"][a-z0-9]{37}['\"]", "high", "medium", "cloud", "validate_cloudflare"),
     ("Cloudflare API Token", r"(?i)cloudflare.*['\"][A-Za-z0-9_-]{40}['\"]", "high", "medium", "cloud", "validate_cloudflare"),
+    ("Cloudflare Origin CA Key", r"v1\.0-[a-f0-9]{24}-[a-f0-9]{146}", "high", "high", "cloud", None),
+    ("Cloudflare Global API Key", r"(?i)cloudflare.*global.*['\"][a-f0-9]{37}['\"]", "high", "medium", "cloud", None),
+    ("Alibaba Access Key ID", r"\bLTAI[a-zA-Z0-9]{20}\b", "critical", "high", "cloud", None),
+    ("Alibaba Secret Key", r"(?i)alibaba.*['\"][a-z0-9]{30}['\"]", "high", "medium", "cloud", None),
+    ("Yandex API Key", r"(?i)yandex.*['\"]AQVN[a-zA-Z0-9_\-]{35,38}['\"]", "high", "medium", "cloud", None),
+    ("Yandex AWS Access Token", r"YC[a-zA-Z0-9_\-]{38}", "high", "medium", "cloud", None),
 
     # ========== PAYMENT / FINANCIAL (Critical) ==========
     ("Stripe Secret Key", r"sk_live_[0-9a-zA-Z]{24,}", "critical", "high", "payment", "validate_stripe"),
@@ -41,9 +52,32 @@ _RAW_PATTERNS = [
     ("Stripe Restricted Key", r"rk_live_[0-9a-zA-Z]{24,}", "critical", "high", "payment", None),
     ("Stripe Publishable Key", r"pk_live_[0-9a-zA-Z]{24,}", "low", "high", "payment", None),
     ("PayPal Client ID", r"(?i)paypal.*client[_-]?id.*['\"][A-Za-z0-9-]{20,}['\"]", "high", "medium", "payment", None),
+    ("PayPal Braintree Token", r"access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}", "critical", "high", "payment", None),
     ("Square Access Token", r"sq0atp-[0-9A-Za-z\-_]{22}", "critical", "high", "payment", None),
     ("Square OAuth Secret", r"sq0csp-[0-9A-Za-z\-_]{43}", "critical", "high", "payment", None),
     ("Razorpay Key", r"rzp_(live|test)_[a-zA-Z0-9]{14}", "high", "high", "payment", None),
+    ("Plaid Client ID", r"(?i)plaid.*client.?id.*['\"][a-f0-9]{24}['\"]", "high", "medium", "payment", None),
+    ("Plaid Secret Key", r"(?i)plaid.*secret.*['\"][a-f0-9]{30}['\"]", "critical", "high", "payment", None),
+    ("Flutterwave Secret Key", r"FLWSECK-[a-zA-Z0-9]{32}-X", "critical", "high", "payment", None),
+    ("Flutterwave Public Key", r"FLWPUBK-[a-zA-Z0-9]{32}-X", "medium", "high", "payment", None),
+    ("GoCardless API Token", r"(?i)gocardless.*['\"]live_[a-zA-Z0-9\-_]{40,}['\"]", "critical", "high", "payment", None),
+    ("Coinbase Access Token", r"(?i)coinbase.*['\"][a-zA-Z0-9]{64}['\"]", "high", "medium", "payment", None),
+
+    # ========== AI / LLM PROVIDERS (Critical) ==========
+    ("OpenAI API Key", r"sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}", "critical", "high", "ai_llm", "validate_openai"),
+    ("OpenAI Project Key", r"sk-proj-[a-zA-Z0-9_-]{80,}", "critical", "high", "ai_llm", "validate_openai"),
+    ("Anthropic API Key", r"sk-ant-api03-[a-zA-Z0-9_\-]{93}AA", "critical", "high", "ai_llm", None),
+    ("Anthropic Admin Key", r"sk-ant-admin01-[a-zA-Z0-9_\-]{93}AA", "critical", "high", "ai_llm", None),
+    ("HuggingFace Access Token", r"hf_[a-zA-Z]{34}", "high", "high", "ai_llm", None),
+    ("HuggingFace Org Token", r"api_org_[a-zA-Z0-9]{34}", "high", "high", "ai_llm", None),
+    ("Cohere API Token", r"(?i)cohere.*['\"][a-zA-Z0-9]{40}['\"]", "high", "medium", "ai_llm", None),
+    ("Perplexity API Key", r"pplx-[a-f0-9]{48}", "high", "high", "ai_llm", None),
+    ("Replicate API Token", r"r8_[a-zA-Z0-9]{40}", "high", "high", "ai_llm", None),
+    ("Google Gemini API Key", r"(?i)gemini.*['\"]AIza[0-9A-Za-z\-_]{35}['\"]", "critical", "high", "ai_llm", None),
+    ("Mistral API Key", r"(?i)mistral.*['\"][a-zA-Z0-9]{32}['\"]", "high", "medium", "ai_llm", None),
+    ("Groq API Key", r"gsk_[a-zA-Z0-9]{52}", "high", "high", "ai_llm", None),
+    ("Together AI Key", r"(?i)together.*['\"][a-f0-9]{64}['\"]", "high", "medium", "ai_llm", None),
+    ("Deepseek API Key", r"(?i)deepseek.*['\"]sk-[a-f0-9]{48}['\"]", "high", "medium", "ai_llm", None),
 
     # ========== AUTHENTICATION TOKENS (High) ==========
     ("GitHub Token Classic", r"ghp_[0-9a-zA-Z]{36}", "high", "high", "auth", "validate_github"),
@@ -51,28 +85,71 @@ _RAW_PATTERNS = [
     ("GitHub OAuth Token", r"gho_[0-9a-zA-Z]{36}", "high", "high", "auth", "validate_github"),
     ("GitHub App Token", r"(?:ghu|ghs)_[0-9a-zA-Z]{36}", "high", "high", "auth", "validate_github"),
     ("GitHub Refresh Token", r"ghr_[0-9a-zA-Z]{36}", "high", "high", "auth", None),
-    ("GitLab Token", r"glpat-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", "validate_gitlab"),
+    ("GitHub Credentials URL", r"[a-zA-Z0-9_-]*:[a-zA-Z0-9_\-]+@github\.com", "high", "high", "auth", None),
+    ("GitLab PAT", r"glpat-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", "validate_gitlab"),
     ("GitLab Runner Token", r"GR1348941[0-9a-zA-Z\-_]{20}", "high", "high", "auth", None),
-    ("Slack Token", r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*", "high", "high", "auth", "validate_slack"),
+    ("GitLab Pipeline Token", r"glptt-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", None),
+    ("GitLab Deploy Token", r"gldt-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", None),
+    ("GitLab CICD Job Token", r"glcbt-[0-9a-zA-Z]{1,5}_[0-9a-zA-Z_-]{20}", "high", "high", "auth", None),
+    ("GitLab Feed Token", r"glft-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", None),
+    ("GitLab SCIM Token", r"glsoat-[0-9a-zA-Z\-_]{20}", "high", "high", "auth", None),
+    ("GitLab OAuth App Secret", r"gloas-[0-9a-f]{64}", "high", "high", "auth", None),
+    ("Slack Bot Token", r"xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*", "high", "high", "auth", "validate_slack"),
+    ("Slack User Token", r"xoxp-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*", "high", "high", "auth", "validate_slack"),
+    ("Slack App Token", r"xapp-[0-9]{1,2}-[A-Z0-9]+-[0-9]+-[a-z0-9]+", "high", "high", "auth", None),
+    ("Slack Legacy Token", r"xox[os]-[0-9]{10,13}-[a-zA-Z0-9]{10,48}", "high", "high", "auth", None),
+    ("Slack Config Token", r"xoxe\.xox[bp]-[0-9]-[a-zA-Z0-9]{160,}", "high", "high", "auth", None),
     ("Slack Webhook", r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+", "high", "high", "auth", None),
-    ("Discord Bot Token", r"[MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27}", "high", "high", "auth", "validate_discord"),
+    ("Discord Bot Token", r"[MN][A-Za-z\d]{23,}\.[\w-]{4,7}\.[\w-]{27,}", "high", "high", "auth", "validate_discord"),
     ("Discord Webhook", r"https://discord(?:app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+", "high", "high", "auth", None),
     ("Twilio API Key", r"\bSK[0-9a-fA-F]{32}\b", "high", "high", "auth", "validate_twilio"),
-    ("Twilio Account SID", r"\bAC[0-9a-f]{32}\b", "medium", "high", "auth", "validate_twilio_format"),
+    ("Twilio Account SID", r"\bAC[a-zA-Z0-9]{32}\b", "medium", "high", "auth", "validate_twilio_format"),
+    ("Twilio App SID", r"\bAP[a-zA-Z0-9_\-]{32}\b", "medium", "high", "auth", None),
     ("SendGrid API Key", r"SG\.[a-zA-Z0-9]{22}\.[a-zA-Z0-9\-_]{43}", "high", "high", "auth", "validate_sendgrid"),
     ("Mailgun API Key", r"key-[0-9a-zA-Z]{32}", "high", "high", "auth", "validate_mailgun"),
+    ("Mailgun Public Key", r"pubkey-[a-f0-9]{32}", "medium", "high", "auth", None),
     ("Mailchimp API Key", r"[0-9a-f]{32}-us[0-9]{1,2}", "high", "high", "auth", "validate_mailchimp"),
+    ("SendinBlue API Key", r"xkeysib-[a-f0-9]{64}-[a-zA-Z0-9]{16}", "high", "high", "auth", None),
     ("Telegram Bot Token", r"[0-9]+:AA[0-9A-Za-z\-_]{33}", "high", "high", "auth", "validate_telegram"),
     ("Postmark Server Token", r"(?i)postmark.*['\"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]", "high", "medium", "auth", "validate_postmark"),
     ("Okta API Token", r"(?i)okta.*['\"][0-9a-zA-Z_-]{42}['\"]", "high", "medium", "auth", "validate_okta"),
     ("Auth0 Client Secret", r"(?i)auth0.*client.?secret.*['\"][a-zA-Z0-9_-]{32,}['\"]", "high", "medium", "auth", None),
-    ("Heroku API Key", r"[hH][eE][rR][oO][kK][uU].*[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}", "high", "medium", "auth", "validate_heroku"),
+    ("Heroku API Key", r"(?i)heroku.*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "high", "medium", "auth", "validate_heroku"),
     ("HubSpot API Key", r"(?i)hubspot.*['\"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]", "high", "medium", "auth", "validate_hubspot"),
-    ("Shopify Token", r"shpat_[a-fA-F0-9]{32}", "high", "high", "auth", "validate_shopify"),
+    ("Shopify Access Token", r"shpat_[a-fA-F0-9]{32}", "high", "high", "auth", "validate_shopify"),
+    ("Shopify Custom Access Token", r"shpca_[a-fA-F0-9]{32}", "high", "high", "auth", None),
+    ("Shopify Private App Token", r"shppa_[a-fA-F0-9]{32}", "high", "high", "auth", None),
     ("Shopify Shared Secret", r"shpss_[a-fA-F0-9]{32}", "high", "high", "auth", None),
+    ("Twitter Bearer Token", r"(?<![A-Za-z0-9+/=])AAAAAAAAAAAAAAAAAAAAAA[0-9A-Za-z%]{30,}(?![A-Za-z0-9+/=])", "high", "medium", "auth", "validate_twitter_format"),
+    ("Twitter API Secret", r"(?i)twitter.*api[_-]?secret.*['\"][0-9a-zA-Z]{50}['\"]", "high", "medium", "auth", None),
+    ("Facebook Access Token", r"EAACEdEose0cBA[0-9A-Za-z]+", "high", "high", "auth", None),
+    ("Facebook Page Token", r"EAA[MC][a-zA-Z0-9]{100,}", "high", "high", "auth", None),
+    ("Facebook Secret", r"(?i)facebook.*(?:secret|app.?secret).*['\"][a-f0-9]{32}['\"]", "high", "medium", "auth", None),
+    ("LinkedIn Client Secret", r"(?i)linkedin.*client.?secret.*['\"][a-zA-Z0-9]{16}['\"]", "high", "medium", "auth", None),
+    ("Twitch API Token", r"(?i)twitch.*['\"][a-z0-9]{30}['\"]", "high", "medium", "auth", None),
+    ("Microsoft Teams Webhook", r"https://[a-z0-9]+\.webhook\.office\.com/webhookb2/[a-f0-9-]+", "high", "high", "auth", None),
+    ("Mattermost Access Token", r"(?i)mattermost.*['\"][a-z0-9]{26}['\"]", "high", "medium", "auth", None),
+    ("MessageBird API Token", r"(?i)messagebird.*['\"][a-zA-Z0-9]{25}['\"]", "high", "medium", "auth", None),
+    ("Gitter Access Token", r"(?i)gitter.*['\"][a-f0-9]{40}['\"]", "high", "medium", "auth", None),
+    ("Intercom API Key", r"(?i)intercom.*['\"][a-z0-9=_]{60}['\"]", "high", "medium", "auth", None),
+
+    # ========== OBSERVABILITY & MONITORING ==========
+    ("Sentry DSN", r"https://[a-f0-9]{32}@[a-z0-9.-]+\.ingest\.sentry\.io/[0-9]+", "medium", "high", "js_service", None),
+    ("Sentry Access Token", r"sntrys_[a-zA-Z0-9]{56,}", "high", "high", "js_service", None),
+    ("Sentry Org Token", r"sntryo_[a-zA-Z0-9]{56,}", "high", "high", "js_service", None),
+    ("Datadog API Key", r"(?i)datadog.*['\"][a-f0-9]{32}['\"]", "high", "medium", "js_service", None),
+    ("Datadog App Key", r"(?i)datadog.*app.*key.*['\"][a-f0-9]{40}['\"]", "high", "medium", "js_service", None),
+    ("New Relic Insert Key", r"NRII-[A-Za-z0-9-_]{32}", "high", "high", "js_service", None),
+    ("New Relic User API Key", r"NRAK-[A-Z0-9]{27}", "high", "high", "js_service", None),
+    ("New Relic Browser API Token", r"NRJS-[a-f0-9]{19}", "medium", "high", "js_service", None),
+    ("Grafana API Key", r"eyJrIjoi[a-zA-Z0-9+/=]{60,}", "high", "high", "js_service", None),
+    ("Grafana Cloud Token", r"glc_[A-Za-z0-9+/]{32,}={0,2}", "high", "high", "js_service", None),
+    ("Grafana Service Account Token", r"glsa_[A-Za-z0-9]{32}_[a-f0-9]{8}", "high", "high", "js_service", None),
+    ("Dynatrace API Token", r"dt0c01\.[A-Z0-9]{24}\.[A-Z0-9]{64}", "high", "high", "js_service", None),
+    ("SumoLogic Access ID", r"(?i)sumo.*access.?id.*['\"]su[a-zA-Z0-9]{12}['\"]", "high", "medium", "js_service", None),
+    ("SumoLogic Access Token", r"(?i)sumo.*access.?key.*['\"][a-zA-Z0-9]{64}['\"]", "high", "medium", "js_service", None),
 
     # ========== JS-SPECIFIC SERVICES (High/Medium) ==========
-    ("Sentry DSN", r"https://[a-f0-9]{32}@[a-z0-9.-]+\.ingest\.sentry\.io/[0-9]+", "medium", "high", "js_service", None),
     ("Algolia API Key", r"(?i)algolia.*['\"][a-f0-9]{32}['\"]", "high", "medium", "js_service", None),
     ("Algolia App ID", r"(?i)algolia.*app.?id.*['\"][A-Z0-9]{10}['\"]", "low", "medium", "js_service", None),
     ("Mapbox Token", r"pk\.[a-zA-Z0-9]{60,}", "medium", "high", "js_service", None),
@@ -82,13 +159,107 @@ _RAW_PATTERNS = [
     ("Segment Write Key", r"(?i)segment.*write.?key.*['\"][a-zA-Z0-9]{32}['\"]", "medium", "medium", "js_service", None),
     ("Amplitude API Key", r"(?i)amplitude.*api.?key.*['\"][a-f0-9]{32}['\"]", "medium", "medium", "js_service", None),
     ("LaunchDarkly SDK Key", r"(?i)sdk-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "medium", "high", "js_service", None),
+    ("LaunchDarkly Access Token", r"(?i)api-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "high", "high", "js_service", None),
     ("Contentful Token", r"(?i)contentful.*['\"][a-zA-Z0-9_-]{43}['\"]", "medium", "medium", "js_service", None),
     ("Supabase Key", r"(?i)supabase.*(?:anon|service).*key.*eyJ[A-Za-z0-9-_]+", "high", "medium", "js_service", None),
     ("PlanetScale Token", r"pscale_tkn_[a-zA-Z0-9_-]{43}", "high", "high", "js_service", None),
+    ("PlanetScale OAuth Token", r"pscale_otkn_[a-zA-Z0-9_-]{43}", "high", "high", "js_service", None),
+    ("PlanetScale Password", r"pscale_pw_[a-zA-Z0-9_-]{43}", "high", "high", "js_service", None),
     ("Vercel Token", r"(?i)vercel.*['\"][a-zA-Z0-9]{24}['\"]", "high", "medium", "js_service", None),
-    ("Next.js Env Leak", r"__NEXT_DATA__.*(?:apiKey|secret|token|password)", "high", "medium", "js_service", None),
-    ("OpenAI API Key", r"sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20}", "critical", "high", "js_service", "validate_openai"),
-    ("OpenAI Project Key", r"sk-proj-[a-zA-Z0-9_-]{80,}", "critical", "high", "js_service", "validate_openai"),
+    ("Next.js Env Leak", r"__NEXT_DATA__.{0,5000}(?:apiKey|secret|token|password)", "high", "medium", "js_service", None),
+    ("Airtable API Key", r"(?i)airtable.*['\"][a-z0-9]{17}['\"]", "high", "medium", "js_service", None),
+    ("Airtable PAT", r"\bpat[a-zA-Z0-9]{14}\.[a-f0-9]{64}\b", "high", "high", "js_service", None),
+
+    # ========== DEV TOOLS & PROJECT MANAGEMENT ==========
+    ("Atlassian API Token", r"ATATT3[A-Za-z0-9_\-=]{186}", "high", "high", "auth", None),
+    ("Notion API Token", r"(?i)notion.*secret_[a-zA-Z0-9]{43}", "high", "high", "auth", None),
+    ("Linear API Key", r"lin_api_[a-zA-Z0-9]{40}", "high", "high", "auth", None),
+    ("Linear Client Secret", r"(?i)linear.*client.?secret.*['\"][a-f0-9]{32}['\"]", "high", "medium", "auth", None),
+    ("Asana Client ID", r"(?i)asana.*['\"][0-9]{16}['\"]", "medium", "medium", "auth", None),
+    ("Asana Client Secret", r"(?i)asana.*secret.*['\"][a-z0-9]{32}['\"]", "high", "medium", "auth", None),
+    ("Postman API Token", r"PMAK-[a-f0-9]{24}-[a-f0-9]{34}", "high", "high", "auth", None),
+    ("Bitbucket Client ID", r"(?i)bitbucket.*client.?id.*['\"][a-zA-Z0-9]{32}['\"]", "medium", "medium", "auth", None),
+    ("Bitbucket Client Secret", r"(?i)bitbucket.*client.?secret.*['\"][a-zA-Z0-9_\-]{64}['\"]", "high", "medium", "auth", None),
+    ("Snyk API Token", r"(?i)snyk.*['\"][a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}['\"]", "high", "medium", "auth", None),
+    ("SonarQube Token", r"sqa_[a-zA-Z0-9]{40}", "high", "high", "auth", None),
+    ("Sourcegraph Access Token", r"sgp_[a-f0-9]{40}", "high", "high", "auth", None),
+    ("Codecov Access Token", r"codecov.*['\"][a-f0-9]{32}['\"]", "high", "medium", "auth", None),
+
+    # ========== CI/CD & INFRASTRUCTURE ==========
+    ("HashiCorp Vault Service Token", r"\bhvs\.[a-zA-Z0-9_-]{24,}\b", "critical", "high", "secret", None),
+    ("HashiCorp Vault Batch Token", r"\bhvb\.[a-zA-Z0-9_-]{24,}\b", "critical", "high", "secret", None),
+    ("HashiCorp Terraform Token", r"(?i)terraform.*['\"][a-zA-Z0-9]{14}\.atlasv1\.[a-zA-Z0-9_-]{60,}['\"]", "critical", "high", "secret", None),
+    ("Doppler API Token", r"dp\.pt\.[a-zA-Z0-9]{43}", "high", "high", "secret", None),
+    ("Pulumi Access Token", r"pul-[a-f0-9]{40}", "high", "high", "secret", None),
+    ("Infracost API Token", r"ico-[a-zA-Z0-9]{32}", "high", "high", "secret", None),
+    ("Databricks API Token", r"dapi[a-h0-9]{32}", "high", "high", "secret", None),
+    ("Netlify Access Token", r"nfp_[a-zA-Z0-9]{40}", "high", "high", "secret", None),
+    ("Fly.io Access Token", r"FlyV1\s+fm1r_[a-zA-Z0-9_-]{43}", "high", "high", "secret", None),
+    ("Scalingo API Token", r"tk-us-[a-zA-Z0-9-_]{48}", "high", "high", "secret", None),
+    ("Render API Token", r"rnd_[a-zA-Z0-9]{32}", "high", "high", "secret", None),
+    ("Travis CI Token", r"(?i)travis.*['\"][a-zA-Z0-9]{20,}['\"]", "high", "medium", "secret", None),
+    ("CircleCI Token", r"(?i)circle.*token.*['\"][a-f0-9]{40}['\"]", "high", "medium", "secret", None),
+    ("DroneCI Access Token", r"(?i)drone.*['\"][a-zA-Z0-9]{32,}['\"]", "high", "medium", "secret", None),
+    ("Octopus Deploy API Key", r"API-[A-Z0-9]{25}", "high", "high", "secret", None),
+    ("OpenShift User Token", r"sha256~[a-zA-Z0-9_-]{43}", "high", "high", "secret", None),
+    ("Harness API Key", r"(?i)harness.*pat\.[a-zA-Z0-9]{22}\.[a-zA-Z0-9]{24}\.[a-zA-Z0-9]{20}", "high", "high", "secret", None),
+
+    # ========== MISC SAAS ==========
+    ("Dropbox Short-lived Token", r"\bsl\.[A-Za-z0-9\-_]{130,}\b", "high", "high", "auth", None),
+    ("Freshbooks Access Token", r"(?i)freshbooks.*['\"][a-f0-9]{64}['\"]", "high", "medium", "auth", None),
+    ("Zendesk Secret Key", r"(?i)zendesk.*['\"][a-zA-Z0-9]{40}['\"]", "high", "medium", "auth", None),
+    ("Typeform API Token", r"tfp_[a-zA-Z0-9_-]{40,}", "high", "high", "auth", None),
+    ("Beamer API Token", r"(?i)beamer.*b_[a-zA-Z0-9=_-]{44}", "medium", "medium", "auth", None),
+    ("ReadMe API Token", r"rdme_[a-z0-9]{70}", "high", "high", "auth", None),
+    ("Fastly API Token", r"(?i)fastly.*['\"][a-zA-Z0-9_-]{32}['\"]", "high", "medium", "auth", None),
+    ("Shippo API Token", r"shippo_(?:live|test)_[a-f0-9]{40}", "high", "high", "auth", None),
+    ("Duffel API Token", r"duffel_(?:live|test)_[a-zA-Z0-9_-]{43}", "high", "high", "auth", None),
+    ("EasyPost API Token", r"EZAK[a-f0-9]{54}", "high", "high", "auth", None),
+    ("Frame.io API Token", r"fio-u-[a-zA-Z0-9\-_=]{64}", "high", "high", "auth", None),
+    ("Adobe Client Secret", r"\bp8e-[a-zA-Z0-9]{32}\b", "high", "high", "auth", None),
+    ("Etsy Access Token", r"(?i)etsy.*['\"][a-z0-9]{24}['\"]", "high", "medium", "auth", None),
+    ("Squarespace Access Token", r"(?i)squarespace.*['\"][a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}['\"]", "high", "medium", "auth", None),
+
+    # ========== PASSWORD MANAGERS ==========
+    ("1Password Secret Key", r"\bA3-[A-Z0-9]{6}-(?:[A-Z0-9]{11}|[A-Z0-9]{6}-[A-Z0-9]{5})-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}\b", "critical", "high", "secret", None),
+    ("1Password Service Account Token", r"ops_eyJ[a-zA-Z0-9+/]{250,}={0,3}", "critical", "high", "secret", None),
+
+    # ========== SECURITY TOOLS ==========
+    ("Age Secret Key", r"AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}", "critical", "high", "secret", None),
+    ("JFrog API Key", r"\bAKCp[A-Za-z0-9]{69}\b", "high", "high", "secret", None),
+    ("JFrog Reference Token", r"\bcmVmd[A-Za-z0-9]{59}\b", "high", "high", "secret", None),
+
+    # ========== PACKAGE REGISTRIES ==========
+    ("NPM Token", r"(?i)//registry\.npmjs\.org/:_authToken=[0-9a-f-]{36}", "high", "high", "secret", None),
+    ("PyPI Token", r"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9-_]{50,}", "high", "high", "secret", None),
+    ("Docker Hub Token", r"dckr_pat_[A-Za-z0-9_-]{27}", "high", "high", "secret", None),
+    ("Clojars API Token", r"CLOJARS_[a-zA-Z0-9]{60}", "high", "high", "secret", None),
+    ("RubyGems API Token", r"rubygems_[a-f0-9]{48}", "high", "high", "secret", None),
+    ("NuGet API Key", r"oy2[a-z0-9]{43}", "high", "high", "secret", None),
+
+    # ========== MODERN JS / SERVERLESS ECOSYSTEM ==========
+    ("Clerk Secret Key", r"sk_live_[a-zA-Z0-9]{27,}", "critical", "high", "auth", None),
+    ("Clerk Publishable Key", r"pk_live_[a-zA-Z0-9]{27,}", "low", "high", "auth", None),
+    ("Clerk Test Secret Key", r"sk_test_[a-zA-Z0-9]{27,}", "medium", "high", "auth", None),
+    ("Neon DB Connection String", r"\bpostgresql://[^\s'\"]*@[^\s'\"]*\.neon\.tech/[^\s'\"]+", "high", "high", "secret", None),
+    ("Upstash Redis REST Token", r"(?i)upstash.*['\"]AX[a-zA-Z0-9_-]{36,}['\"]", "high", "medium", "secret", None),
+    ("Upstash Redis REST URL", r"https://[a-z0-9-]+\.upstash\.io", "medium", "high", "infrastructure", None),
+    ("Resend API Key", r"re_[a-zA-Z0-9]{20,}", "high", "high", "auth", None),
+    ("Convex Deploy Key", r"(?:prod|dev):[a-z0-9]+:[a-zA-Z0-9_-]{40,}", "high", "high", "secret", None),
+    ("Turso DB Token", r"(?i)turso.*eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+", "high", "medium", "secret", None),
+    ("Trigger.dev API Key", r"tr_(?:dev|prod|test)_[a-zA-Z0-9]{24,}", "high", "high", "secret", None),
+    ("Axiom API Token", r"xaat-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "high", "high", "js_service", None),
+    ("Axiom Ingest Token", r"xait-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", "high", "high", "js_service", None),
+    ("Pinecone API Key", r"pcsk_[a-zA-Z0-9_]{50,}", "high", "high", "ai_llm", None),
+    ("Pinecone Legacy API Key", r"(?i)pinecone.*['\"][a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}['\"]", "high", "medium", "ai_llm", None),
+    ("Weaviate API Key", r"(?i)weaviate.*['\"][a-zA-Z0-9]{40,}['\"]", "high", "medium", "ai_llm", None),
+    ("Cloudinary URL", r"cloudinary://[0-9]+:[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+", "high", "high", "cloud", None),
+    ("Cloudinary API Secret", r"(?i)cloudinary.*(?:api_?secret|secret).*['\"][a-zA-Z0-9_-]{27}['\"]", "high", "medium", "cloud", None),
+    ("WorkOS API Key", r"sk_(?:live|test)_[a-zA-Z0-9]{30,}", "high", "high", "auth", None),
+    ("Liveblocks Secret Key", r"sk_(?:prod|dev)_[a-zA-Z0-9_-]{30,}", "high", "high", "auth", None),
+    ("Sanity Project Token", r"sk[a-zA-Z0-9]{8,}\.(?:production|dataset)\.[a-zA-Z0-9]+", "high", "high", "auth", None),
+    ("Expo Access Token", r"expo_[a-zA-Z0-9]{40,}", "high", "high", "auth", None),
+    ("Sentry Auth Token (new)", r"sntrys_eyJ[a-zA-Z0-9+/=_-]{80,}", "high", "high", "js_service", None),
 
     # ========== GENERAL SECRETS (Medium) ==========
     ("JWT Token", r"eyJ[A-Za-z0-9-_]+\.eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+", "medium", "high", "secret", None),
@@ -100,19 +271,16 @@ _RAW_PATTERNS = [
     ("OpenSSH Private Key", r"-----BEGIN OPENSSH PRIVATE KEY-----", "critical", "high", "secret", None),
     ("PGP Private Key", r"-----BEGIN PGP PRIVATE KEY BLOCK-----", "critical", "high", "secret", None),
     ("Generic Private Key", r"-----BEGIN PRIVATE KEY-----", "critical", "high", "secret", None),
+    ("PKCS12 Certificate", r"-----BEGIN CERTIFICATE-----", "high", "medium", "secret", None),
     ("MongoDB URI", r"\bmongodb(?:\+srv)?://[^\s'\"]+", "high", "high", "secret", None),
     ("PostgreSQL URI", r"\bpostgres(?:ql)?://[^\s'\"]+", "high", "high", "secret", None),
     ("MySQL URI", r"\bmysql://[^\s'\"]+", "high", "high", "secret", None),
     ("Redis URL", r"\bredis://[^\s'\"]+", "high", "high", "secret", None),
-    ("NPM Token", r"(?i)//registry\.npmjs\.org/:_authToken=[0-9a-f-]{36}", "high", "high", "secret", None),
-    ("PyPI Token", r"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9-_]{50,}", "high", "high", "secret", None),
-    ("Docker Hub Token", r"dckr_pat_[A-Za-z0-9_-]{27}", "high", "high", "secret", None),
+    ("CockroachDB URL", r"\bcockroachdb://[^\s'\"]+", "high", "high", "secret", None),
     ("Generic API Key", r"(?i)(api[_-]?key|apikey|api_secret)[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9_\-]{16,}[\"']?", "medium", "low", "secret", None),
     ("Generic Secret", r"(?i)(secret|password|passwd|pwd)[\"']?\s*[:=]\s*[\"'][^\"']{8,}[\"']", "medium", "low", "secret", None),
     ("Generic Token", r"(?i)(access[_-]?token|auth[_-]?token)[\"']?\s*[:=]\s*[\"']?[a-zA-Z0-9_\-]{16,}[\"']?", "medium", "low", "secret", None),
     ("Hardcoded Password", r"(?i)(password|passwd|pwd)\s*=\s*[\"'][^\"']{4,}[\"']", "medium", "low", "secret", None),
-    ("Twitter Bearer Token", r"(?<![A-Za-z0-9+/=])AAAAAAAAAAAAAAAAAAAAAA[0-9A-Za-z%]{30,}(?![A-Za-z0-9+/=])", "high", "medium", "auth", "validate_twitter_format"),
-    ("Facebook Access Token", r"EAACEdEose0cBA[0-9A-Za-z]+", "high", "high", "auth", None),
 
     # ========== INFRASTRUCTURE (Medium) ==========
     ("S3 Bucket (path-style)", r"https?://s3(?:[.-][\w-]+)?\.amazonaws\.com/([a-zA-Z0-9._-]+)", "medium", "high", "infrastructure", None),
@@ -302,7 +470,7 @@ def scan_js_content(
     }
 
     # Categories where false-positive filters apply
-    _FP_FILTER_CATEGORIES = {'auth', 'cloud', 'payment', 'secret', 'js_service'}
+    _FP_FILTER_CATEGORIES = {'auth', 'cloud', 'payment', 'secret', 'js_service', 'ai_llm'}
     # Patterns that rely on structural prefixes, not randomness -- skip entropy check
     _SKIP_ENTROPY_KEYWORDS = ('Private Key', 'URL', 'URI', 'DSN', 'Header')
 
@@ -332,7 +500,8 @@ def scan_js_content(
 
         for line_num, line in enumerate(lines, 1):
             # Skip extremely long lines to prevent regex performance issues
-            if len(line) > 500_000:
+            # 226 patterns x finditer() scales super-linearly; 100K is ~40s
+            if len(line) > 100_000:
                 continue
             for match in pattern['regex'].finditer(line):
                 matched_text = match.group(0)
