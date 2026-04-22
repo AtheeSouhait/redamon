@@ -5,8 +5,7 @@ export const SUBDOMAIN_TAKEOVER: ReconPreset = {
   name: 'Subdomain Takeover Hunter',
   icon: '',
   image: '/preset-capture.svg',
-  shortDescription:
-    'Maximum-aggression end-to-end takeover hunt. Casts the widest subdomain net (all 5 discovery tools + active/brute Amass + GAU historical archives + Puredns wildcard filtering) then runs every layer of the dedicated takeover scanner (Subjack with all optional DNS checks + Nuclei takeover templates), with confidence threshold lowered to surface manual-review candidates.',
+  shortDescription: 'Maximum-aggression takeover hunt. Widest subdomain net feeds Subjack (all DNS checks), Nuclei takeover templates, and BadDNS. Lowered confidence threshold surfaces manual-review candidates.',
   fullDescription: `### Pipeline Goal
 Discover every subdomain that exists and squeeze every possible takeover finding out of them. This is the one-preset-to-rule-them-all for subdomain takeover hunting: maximum discovery breadth + maximum detection depth + lowest feasible confidence threshold.
 

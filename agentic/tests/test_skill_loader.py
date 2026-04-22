@@ -125,11 +125,10 @@ class TestListSkills(unittest.TestCase):
                           f"Unexpected category '{skill['category']}' for skill '{skill['id']}'")
 
     def test_known_skills_exist(self):
-        """Verify some of the 36 shipped skills are discoverable."""
+        """Verify the shipped reference skill is discoverable."""
         skills = list_skills()
         skill_ids = {s["id"] for s in skills}
-        # Check a few known skills
-        expected = {"vulnerabilities/ssrf", "tooling/ffuf", "tooling/nmap", "vulnerabilities/xss"}
+        expected = {"active_directory/ad_kill_chain"}
         for exp in expected:
             self.assertIn(exp, skill_ids, f"Expected skill '{exp}' not found")
 
@@ -139,21 +138,20 @@ class TestListSkills(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)), "Duplicate skill IDs found")
 
     def test_skill_count(self):
-        """PR #85 shipped 36 skills."""
         skills = list_skills()
-        self.assertGreaterEqual(len(skills), 30, "Expected at least 30 skills")
+        self.assertGreaterEqual(len(skills), 1, "Expected at least 1 shipped skill")
 
 
 class TestLoadSkillContent(unittest.TestCase):
     """Tests for load_skill_content() including path traversal protection."""
 
     def test_load_existing_skill(self):
-        content = load_skill_content("vulnerabilities/ssrf")
+        content = load_skill_content("active_directory/ad_kill_chain")
         self.assertIsNotNone(content)
-        self.assertIn("SSRF", content)
+        self.assertIn("AD", content)
 
     def test_load_nonexistent_skill(self):
-        content = load_skill_content("vulnerabilities/does_not_exist_xyz")
+        content = load_skill_content("active_directory/does_not_exist_xyz")
         self.assertIsNone(content)
 
     def test_path_traversal_blocked(self):
@@ -162,7 +160,7 @@ class TestLoadSkillContent(unittest.TestCase):
         self.assertIsNone(content)
 
     def test_path_traversal_dotdot_in_middle(self):
-        content = load_skill_content("vulnerabilities/../../../etc/passwd")
+        content = load_skill_content("active_directory/../../../etc/passwd")
         self.assertIsNone(content)
 
     def test_absolute_path_blocked(self):
@@ -171,16 +169,16 @@ class TestLoadSkillContent(unittest.TestCase):
         self.assertIsNone(content)
 
     def test_load_with_forward_slash(self):
-        content = load_skill_content("tooling/ffuf")
+        content = load_skill_content("active_directory/ad_kill_chain")
         self.assertIsNotNone(content)
-        self.assertIn("ffuf", content.lower())
+        self.assertIn("kill chain", content.lower())
 
     def test_empty_skill_id(self):
         content = load_skill_content("")
         self.assertIsNone(content)
 
     def test_content_is_string(self):
-        content = load_skill_content("vulnerabilities/xss")
+        content = load_skill_content("active_directory/ad_kill_chain")
         if content is not None:
             self.assertIsInstance(content, str)
             self.assertGreater(len(content), 10)

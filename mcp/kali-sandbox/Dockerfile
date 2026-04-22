@@ -43,6 +43,8 @@ RUN apt-get install -y --fix-missing \
     # Exploitation & post-exploitation
     exploitdb \
     john \
+    john-data \
+    hashcat \
     hydra \
     sshpass \
     smbclient \
@@ -201,7 +203,70 @@ RUN retry pip install --no-cache-dir git+https://github.com/devanshbatham/ParamS
 # bloodhound: Active Directory relationship collector (attack path analysis)
 # certipy-ad: AD Certificate Services exploitation (ESC1-ESC13) — pins impacket~=0.13.0
 # ldapdomaindump: LDAP enumeration (users, groups, password policies)
-RUN pip install --no-cache-dir hashID bloodhound certipy-ad ldapdomaindump
+# bloodyAD: live AD abuse primitives (password reset, group add, SPN set) driven by BloodHound edges
+# networkx + orjson: power the /opt/adkc/bhgraph helper (BloodHound JSON → in-memory graph, no Neo4j)
+RUN pip install --no-cache-dir hashID bloodhound certipy-ad ldapdomaindump \
+    bloodyAD networkx orjson
+
+# gMSADumper: read gMSA passwords when BloodHound flags ReadGMSAPassword edge.
+# Not on PyPI — install from git. Source: https://github.com/micahvandeusen/gMSADumper (MIT)
+RUN retry git clone --depth 1 https://github.com/micahvandeusen/gMSADumper.git /opt/gMSADumper \
+    && pip install --no-cache-dir ldap3 pyasn1 \
+    && chmod +x /opt/gMSADumper/gMSADumper.py \
+    && ln -sf /opt/gMSADumper/gMSADumper.py /usr/local/bin/gMSADumper.py \
+    && ln -sf /opt/gMSADumper/gMSADumper.py /usr/local/bin/gMSADumper
+
+# kerbrute — fast Kerberos pre-auth based user enumeration + password spray
+# Source: https://github.com/ropnop/kerbrute (Apache-2.0)
+RUN retry go install -v github.com/ropnop/kerbrute@latest
+
+# AD kill-chain helper: BloodHound JSON → NetworkX path-finder (Option A, no Neo4j)
+COPY kali-sandbox/adkc/bhgraph.py /opt/adkc/bhgraph.py
+RUN chmod +x /opt/adkc/bhgraph.py \
+    && ln -s /opt/adkc/bhgraph.py /usr/local/bin/bhgraph
+
+# gpp-decrypt: one-shot decrypt of GPP cpassword blobs (public AES key, MS14-025 legacy)
+COPY kali-sandbox/adkc/gpp-decrypt.py /opt/adkc/gpp-decrypt.py
+RUN chmod +x /opt/adkc/gpp-decrypt.py \
+    && ln -s /opt/adkc/gpp-decrypt.py /usr/local/bin/gpp-decrypt
+
+# Create impacket-* shell aliases. pip-installed impacket only ships
+# `<Tool>.py` names in /opt/venv/bin; the `impacket-<Tool>` aliases are
+# what the tool_registry and skills assume. Symlink every .py to both names.
+RUN set -e; for f in /opt/venv/bin/*.py; do \
+      base=$(basename "$f" .py); \
+      case "$base" in \
+        GetADUsers|GetNPUsers|GetUserSPNs|psexec|wmiexec|smbexec|secretsdump|\
+        ticketer|getST|getTGT|dacledit|owneredit|rbcd|addcomputer|changepasswd|\
+        ntlmrelayx|samrdump|services|reg|atexec|mqtt_check|mssqlclient|\
+        rpcdump|rpcmap|lookupsid|goldenPac|kintercept|karmaSMB|keylistattack|\
+        machine_role|mimikatz|nmapAnswerMachine|ntfs-read|ping|ping6|raiseChild|\
+        sambaPipe|sniff|sniffer|split|ticketConverter|tstool) \
+          ln -sf "$f" "/usr/local/bin/impacket-$base" ;; \
+      esac; \
+    done
+
+# Wordlists needed by the AD kill-chain skill (and other crackers).
+# - rockyou: /usr/share/wordlists/rockyou.txt (Kali's wordlists package)
+# - xato-net usernames: raw SecLists download (~70MB)
+# - common passwords (10k): small fallback for quick spray tiers
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wordlists \
+    && rm -rf /var/lib/apt/lists/* \
+    && if [ -f /usr/share/wordlists/rockyou.txt.gz ]; then \
+         gunzip -k /usr/share/wordlists/rockyou.txt.gz; \
+       fi \
+    && mkdir -p /usr/share/seclists/Passwords/Leaked-Databases \
+                /usr/share/seclists/Passwords/Common-Credentials \
+                /usr/share/seclists/Usernames \
+    && if [ -f /usr/share/wordlists/rockyou.txt ]; then \
+         ln -sf /usr/share/wordlists/rockyou.txt \
+                /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt; \
+       fi \
+    && retry curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10k-most-common.txt \
+        -o /usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt \
+    && retry curl -sL https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/xato-net-10-million-usernames.txt \
+        -o /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
 
 # SSTImap — Server-Side Template Injection detection & exploitation
 # Source: https://github.com/vladko312/SSTImap (MIT)

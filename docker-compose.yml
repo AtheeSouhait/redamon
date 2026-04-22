@@ -415,6 +415,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./agentic/logs:/app/logs
+      - ./agentic/skills:/app/skills:ro
+      - ./agentic/community-skills:/app/community-skills:ro
       - cypherfix-repos:/tmp/cypherfix-repos
       - ./knowledge_base/kb_config.yaml:/app/knowledge_base/kb_config.yaml:ro
       - ./knowledge_base/data:/app/knowledge_base/data
