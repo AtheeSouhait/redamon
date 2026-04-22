@@ -438,6 +438,44 @@ def _is_whitelisted_staging_url(matched_text: str) -> bool:
     return any(domain in lower for domain in _STAGING_URL_WHITELIST)
 
 
+def _collapse_span_duplicates(findings: list) -> list:
+    """Collapse findings that matched the same span under different pattern names.
+
+    When overlapping prefix patterns (e.g. Stripe/Clerk/WorkOS all claim sk_live_*)
+    hit the same token, keep the highest-ranked finding as primary and record the
+    rest in `alternate_names` so no information is lost.
+    """
+    if not findings:
+        return findings
+
+    groups: dict = {}
+    order: list = []
+    for f in findings:
+        key = (f['matched_text'], f['source_url'], f['line_number'])
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(f)
+
+    collapsed = []
+    for key in order:
+        group = groups[key]
+        if len(group) == 1:
+            collapsed.append(group[0])
+            continue
+        # Rank: higher severity > higher confidence > longer pattern name (specificity proxy)
+        group.sort(key=lambda f: (
+            SEVERITY_ORDER.get(f['severity'], 0),
+            CONFIDENCE_ORDER.get(f['confidence'], 0),
+            len(f['name']),
+        ), reverse=True)
+        primary = group[0]
+        primary['alternate_names'] = [f['name'] for f in group[1:]]
+        collapsed.append(primary)
+
+    return collapsed
+
+
 def scan_js_content(
     content: str,
     source_url: str,
@@ -579,6 +617,7 @@ def scan_js_content(
                     'detection_method': 'regex',
                 })
 
+    findings = _collapse_span_duplicates(findings)
     return findings, filtered_counts
 
 

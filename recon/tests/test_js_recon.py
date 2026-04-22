@@ -321,15 +321,23 @@ class TestDiscordTokenFix(unittest.TestCase):
 class TestModernJSPatterns(unittest.TestCase):
 
     def test_clerk_secret_key(self):
+        # sk_live_ + 27 alnum matches both Stripe (24+) and Clerk (27+) at the
+        # same span; span-dedup collapses them, so Clerk may appear as either
+        # the primary or an alternate.
         findings = _scan('sk_live_' + _ALNUM27)
-        self.assertTrue(any(f['name'] == 'Clerk Secret Key' for f in findings))
+        self.assertTrue(any(
+            f['name'] == 'Clerk Secret Key' or 'Clerk Secret Key' in f.get('alternate_names', [])
+            for f in findings
+        ))
 
     def test_clerk_short_not_matched(self):
         """Clerk keys are 27+ chars; shorter should only match Stripe."""
         findings = _scan('sk_live_' + _ALNUM24)
-        names = {f['name'] for f in findings}
-        self.assertNotIn('Clerk Secret Key', names)
-        self.assertIn('Stripe Secret Key', names)
+        all_names = {f['name'] for f in findings} | {
+            n for f in findings for n in f.get('alternate_names', [])
+        }
+        self.assertNotIn('Clerk Secret Key', all_names)
+        self.assertIn('Stripe Secret Key', all_names)
 
     def test_neon_connection_string(self):
         findings = _scan('postgresql://user:pass@ep-cool-123456.us-east-2.aws.neon.tech/neondb')
@@ -423,6 +431,36 @@ class TestDeduplication(unittest.TestCase):
         findings = _scan(js)
         ids = [f['id'] for f in findings]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class TestCrossPatternSpanDedup(unittest.TestCase):
+    """Overlapping prefix patterns matching the same span collapse to one finding."""
+
+    def test_stripe_clerk_workos_collapse(self):
+        # sk_live_ + 30 alnum matches Stripe (24+), Clerk (27+), and WorkOS (30+)
+        findings = _scan('sk_live_' + _ALNUM30)
+        sk_live_findings = [f for f in findings if f['matched_text'].startswith('sk_live_')]
+        self.assertEqual(len(sk_live_findings), 1, "Same span should collapse to one finding")
+        primary = sk_live_findings[0]
+        all_names = {primary['name']} | set(primary.get('alternate_names', []))
+        self.assertIn('Stripe Secret Key', all_names)
+        self.assertIn('Clerk Secret Key', all_names)
+        self.assertIn('WorkOS API Key', all_names)
+
+    def test_distinct_spans_not_collapsed(self):
+        # Two different tokens on different lines -- no collapse
+        js = 'sk_live_' + _ALNUM30 + '\nAKIA1234567890ABCDEF'
+        findings = _scan(js)
+        matched = {f['matched_text'] for f in findings}
+        self.assertIn('AKIA1234567890ABCDEF', matched)
+        self.assertTrue(any(m.startswith('sk_live_') for m in matched))
+
+    def test_single_match_no_alternates(self):
+        # OpenAI pattern is unique -- no collapse, no alternate_names
+        findings = _scan('sk-' + _ALNUM20 + 'T3BlbkFJ' + _ALNUM20)
+        openai = [f for f in findings if f['name'] == 'OpenAI API Key']
+        self.assertEqual(len(openai), 1)
+        self.assertEqual(openai[0].get('alternate_names', []), [])
 
 
 # ============================================================
