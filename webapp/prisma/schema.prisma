@@ -270,8 +270,8 @@ model Project {
   nucleiConcurrency           Int      @default(25) @map("nuclei_concurrency")
   nucleiTimeout               Int      @default(10) @map("nuclei_timeout")
   nucleiRetries               Int      @default(1) @map("nuclei_retries")
-  nucleiTags                  String[] @default([]) @map("nuclei_tags")
-  nucleiExcludeTags           String[] @default([]) @map("nuclei_exclude_tags")
+  nucleiTags                  String[] @default(["cve", "xss", "sqli", "rce", "lfi", "ssrf", "xxe", "ssti"]) @map("nuclei_tags")
+  nucleiExcludeTags           String[] @default(["dos", "fuzz"]) @map("nuclei_exclude_tags")
   nucleiDastMode              Boolean  @default(false) @map("nuclei_dast_mode")
   nucleiAutoUpdateTemplates   Boolean  @default(true) @map("nuclei_auto_update_templates")
   nucleiNewTemplatesOnly      Boolean  @default(false) @map("nuclei_new_templates_only")
@@ -677,8 +677,26 @@ model Project {
   sqliRisk                              Int      @default(1) @map("sqli_risk")
   sqliTamperScripts                     String   @default("") @map("sqli_tamper_scripts")
 
+  // ========== SSRF SETTINGS ==========
+  ssrfOobCallbackEnabled                Boolean  @default(true) @map("ssrf_oob_callback_enabled")
+  ssrfCloudMetadataEnabled              Boolean  @default(true) @map("ssrf_cloud_metadata_enabled")
+  ssrfGopherEnabled                     Boolean  @default(true) @map("ssrf_gopher_enabled")
+  ssrfDnsRebindingEnabled               Boolean  @default(true) @map("ssrf_dns_rebinding_enabled")
+  ssrfPayloadReferenceEnabled           Boolean  @default(true) @map("ssrf_payload_reference_enabled")
+  ssrfRequestTimeout                    Int      @default(10) @map("ssrf_request_timeout")
+  ssrfPortScanPorts                     String   @default("22,80,443,2375,3306,5432,6379,8080,8500,9200,27017") @map("ssrf_port_scan_ports")
+  ssrfInternalRanges                    String   @default("127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16") @map("ssrf_internal_ranges")
+  ssrfOobProvider                       String   @default("oast.fun") @map("ssrf_oob_provider")
+  ssrfCloudProviders                    String   @default("aws,gcp,azure,digitalocean,alibaba") @map("ssrf_cloud_providers")
+  ssrfCustomInternalTargets             String   @default("") @map("ssrf_custom_internal_targets") @db.Text
+
+  // ========== RCE / COMMAND INJECTION SETTINGS ==========
+  rceOobCallbackEnabled                 Boolean  @default(true) @map("rce_oob_callback_enabled")
+  rceDeserializationEnabled             Boolean  @default(true) @map("rce_deserialization_enabled")
+  rceAggressivePayloads                 Boolean  @default(false) @map("rce_aggressive_payloads")
+
   // ========== ATTACK SKILL CONFIG ==========
-  attackSkillConfig                    Json     @default("{\"builtIn\":{\"cve_exploit\":true,\"brute_force_credential_guess\":true,\"phishing_social_engineering\":true,\"denial_of_service\":true,\"sql_injection\":true,\"xss\":true},\"user\":{}}") @map("attack_skill_config")
+  attackSkillConfig                    Json     @default("{\"builtIn\":{\"cve_exploit\":true,\"brute_force_credential_guess\":true,\"phishing_social_engineering\":true,\"denial_of_service\":true,\"sql_injection\":true,\"xss\":true,\"ssrf\":false,\"rce\":true},\"user\":{}}") @map("attack_skill_config")
 
   // ========== CYPHERFIX SETTINGS ==========
   cypherfixGithubToken              String   @default("") @map("cypherfix_github_token")

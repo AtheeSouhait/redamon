@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Bug, KeyRound, Mail, Swords, Loader2, Settings, Zap, Database, Code2 } from 'lucide-react'
+import { ChevronDown, Bug, KeyRound, Mail, Swords, Loader2, Settings, Zap, Database, Code2, Globe, Terminal } from 'lucide-react'
 import type { Project } from '@prisma/client'
 import { useProject } from '@/providers/ProjectProvider'
 import { Toggle } from '@/components/ui/Toggle/Toggle'
@@ -10,6 +10,8 @@ import { HydraSection } from './BruteForceSection'
 import { PhishingSection } from './PhishingSection'
 import { DosSection } from './DosSection'
 import { SqliSection } from './SqliSection'
+import { SsrfSection } from './SsrfSection'
+import { RceSection } from './RceSection'
 import styles from '../ProjectForm.module.css'
 
 type FormData = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'user'>
@@ -53,6 +55,18 @@ const BUILT_IN_SKILLS: BuiltInSkillDef[] = [
     icon: <Code2 size={16} />,
   },
   {
+    id: 'ssrf',
+    name: 'Server-Side Request Forgery',
+    description: 'SSRF detection, internal-network probing, cloud-metadata pivots, protocol smuggling, DNS rebinding, and Redis/FastCGI/Docker RCE chains',
+    icon: <Globe size={16} />,
+  },
+  {
+    id: 'rce',
+    name: 'Remote Code Execution',
+    description: 'RCE / command injection across six primitives: shell-metachar injection (commix), SSTI (sstimap), Java/PHP/Python deserialization (ysoserial), eval / OGNL / SpEL, media-pipeline RCE, and SSRF-to-RCE chains',
+    icon: <Terminal size={16} />,
+  },
+  {
     id: 'brute_force_credential_guess',
     name: 'Credential Testing',
     description: 'Credential policy validation using Hydra against login services',
@@ -82,6 +96,8 @@ const DEFAULT_CONFIG: AttackSkillConfig = {
     cve_exploit: true,
     sql_injection: true,
     xss: true,
+    ssrf: false,
+    rce: true,
     brute_force_credential_guess: false,
     phishing_social_engineering: false,
     denial_of_service: false,
@@ -233,6 +249,12 @@ export function AttackSkillsSection({ data, updateField }: AttackSkillsSectionPr
                   )}
                   {enabled && skill.id === 'sql_injection' && (
                     <SqliSection data={data} updateField={updateField} />
+                  )}
+                  {enabled && skill.id === 'ssrf' && (
+                    <SsrfSection data={data} updateField={updateField} />
+                  )}
+                  {enabled && skill.id === 'rce' && (
+                    <RceSection data={data} updateField={updateField} />
                   )}
                 </div>
               )

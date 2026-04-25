@@ -666,6 +666,7 @@ class ContainerManager:
         tool_id: str,
         config: dict,
         recon_path: str,
+        custom_templates_path: str = "",
     ) -> PartialReconState:
         """Start a partial recon container for a specific tool.
 
@@ -674,6 +675,11 @@ class ContainerManager:
             tool_id: Tool to run (e.g., "SubdomainDiscovery")
             config: Full config dict to write as JSON for the container
             recon_path: Host path to the recon directory
+            custom_templates_path: Host path to mc/nuclei-templates so the
+                spawned container can sibling-mount it for nuclei. Without
+                this, custom-template selection is silently ignored and
+                build_nuclei_command falls back to the full ~8000-template
+                pool (the bug Ritesh hit before this fix).
         """
         # Check concurrency limit
         if self._count_active_partial_recons(project_id) >= MAX_PARALLEL_PARTIAL_RECONS:
@@ -727,6 +733,11 @@ class ContainerManager:
                     "PARTIAL_RECON_RUN_ID": run_id,
                     "UPDATE_GRAPH_DB": "true",
                     "HOST_RECON_OUTPUT_PATH": f"{recon_path}/output",
+                    # Required for nuclei custom-template support: build_nuclei_command
+                    # uses this env var to bind-mount mcp/nuclei-templates into the
+                    # sibling nuclei container. Without it, custom-template selection
+                    # is silently dropped and the full built-in pool runs instead.
+                    "HOST_CUSTOM_TEMPLATES_PATH": custom_templates_path,
                     "NEO4J_URI": os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
                     "NEO4J_USER": os.environ.get("NEO4J_USER", "neo4j"),
                     "NEO4J_PASSWORD": os.environ.get("NEO4J_PASSWORD", ""),

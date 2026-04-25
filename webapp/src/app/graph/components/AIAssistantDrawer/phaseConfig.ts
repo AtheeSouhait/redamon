@@ -85,6 +85,18 @@ export const KNOWN_ATTACK_PATH_CONFIG: Record<string, { label: string; shortLabe
     color: 'var(--accent-success, #10b981)',
     bgColor: 'rgba(16, 185, 129, 0.15)',
   },
+  ssrf: {
+    label: 'Server-Side Request Forgery',
+    shortLabel: 'SSRF',
+    color: 'var(--accent-orange, #f97316)',
+    bgColor: 'rgba(249, 115, 22, 0.15)',
+  },
+  rce: {
+    label: 'Remote Code Execution',
+    shortLabel: 'RCE',
+    color: 'var(--accent-rose, #f43f5e)',
+    bgColor: 'rgba(244, 63, 94, 0.15)',
+  },
 }
 
 /** Derive display config for any attack skill type (known, user, or unclassified). */

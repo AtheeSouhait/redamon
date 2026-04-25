@@ -176,8 +176,8 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
     NUCLEI_CONCURRENCY = settings.get('NUCLEI_CONCURRENCY', 25)
     NUCLEI_TIMEOUT = settings.get('NUCLEI_TIMEOUT', 10)
     NUCLEI_RETRIES = settings.get('NUCLEI_RETRIES', 1)
-    NUCLEI_TAGS = settings.get('NUCLEI_TAGS', [])
-    NUCLEI_EXCLUDE_TAGS = settings.get('NUCLEI_EXCLUDE_TAGS', [])
+    NUCLEI_TAGS = settings.get('NUCLEI_TAGS', ['cve', 'xss', 'sqli', 'rce', 'lfi', 'ssrf', 'xxe', 'ssti'])
+    NUCLEI_EXCLUDE_TAGS = settings.get('NUCLEI_EXCLUDE_TAGS', ['dos', 'fuzz'])
     NUCLEI_DAST_MODE = settings.get('NUCLEI_DAST_MODE', False)
     NUCLEI_NEW_TEMPLATES_ONLY = settings.get('NUCLEI_NEW_TEMPLATES_ONLY', False)
     NUCLEI_CUSTOM_TEMPLATES = settings.get('NUCLEI_CUSTOM_TEMPLATES', [])
@@ -431,6 +431,26 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
         if NUCLEI_DAST_MODE and not dast_urls:
             print(f"[!][Nuclei] DAST pass skipped (no parameterized URLs available); detection pass still runs")
 
+        # Empty Include Tags now means "no built-in templates". The detection
+        # pass only has something to scan if either tags is non-empty OR the
+        # user picked custom templates. If both are empty, refuse before
+        # building the command -- otherwise nuclei would fall back to scanning
+        # all ~8000 default templates which is the OPPOSITE of what we want.
+        has_tags = bool(NUCLEI_TAGS)
+        has_custom = bool(NUCLEI_SELECTED_CUSTOM_TEMPLATES) or bool(NUCLEI_TEMPLATES) or bool(NUCLEI_CUSTOM_TEMPLATES)
+        if not has_tags and not has_custom:
+            print("[!][Nuclei] Include Tags is empty AND no custom templates are selected.")
+            print("[!][Nuclei] Skipping detection pass (empty tags now means 'custom templates only').")
+            print("[!][Nuclei] Either add tags (e.g. cve, xss, sqli) or select a custom template.")
+            # If DAST has parameterized URLs we can still run the DAST pass --
+            # DAST has its own template set and doesn't depend on tags.
+            if not do_dast_pass:
+                return recon_data
+            # Mark detection as skipped; downstream merge handles empty findings.
+            skip_detection_pass = True
+        else:
+            skip_detection_pass = False
+
         # Detection pass targets
         detection_targets_file = str(nuclei_temp_dir / "targets_detection.txt")
         with open(detection_targets_file, 'w') as f:
@@ -459,36 +479,40 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
             false_positives_filtered = []
 
             # ---- Pass A: DETECTION ----
-            detection_cmd = build_nuclei_command(
-                targets_file=detection_targets_file,
-                output_file=detection_output_file,
-                docker_image=NUCLEI_DOCKER_IMAGE,
-                use_proxy=use_proxy,
-                severity=NUCLEI_SEVERITY,
-                templates=NUCLEI_TEMPLATES,
-                exclude_templates=NUCLEI_EXCLUDE_TEMPLATES,
-                custom_templates=NUCLEI_CUSTOM_TEMPLATES,
-                selected_custom_templates=NUCLEI_SELECTED_CUSTOM_TEMPLATES,
-                tags=NUCLEI_TAGS,
-                exclude_tags=NUCLEI_EXCLUDE_TAGS,
-                rate_limit=NUCLEI_RATE_LIMIT,
-                bulk_size=NUCLEI_BULK_SIZE,
-                concurrency=NUCLEI_CONCURRENCY,
-                timeout=NUCLEI_TIMEOUT,
-                retries=NUCLEI_RETRIES,
-                dast_mode=False,
-                new_templates_only=NUCLEI_NEW_TEMPLATES_ONLY,
-                headless=NUCLEI_HEADLESS,
-                system_resolvers=NUCLEI_SYSTEM_RESOLVERS,
-                follow_redirects=NUCLEI_FOLLOW_REDIRECTS,
-                max_redirects=NUCLEI_MAX_REDIRECTS,
-                interactsh=NUCLEI_INTERACTSH,
-            )
-
             start_time = datetime.now()
-            d_findings, d_fps, d_duration, _ = _execute_nuclei_pass(
-                detection_cmd, detection_output_file, label="DETECTION"
-            )
+            d_duration = 0
+            if skip_detection_pass:
+                print("[*][Nuclei] DETECTION pass skipped (no tags + no custom templates)")
+                d_findings, d_fps = [], []
+            else:
+                detection_cmd = build_nuclei_command(
+                    targets_file=detection_targets_file,
+                    output_file=detection_output_file,
+                    docker_image=NUCLEI_DOCKER_IMAGE,
+                    use_proxy=use_proxy,
+                    severity=NUCLEI_SEVERITY,
+                    templates=NUCLEI_TEMPLATES,
+                    exclude_templates=NUCLEI_EXCLUDE_TEMPLATES,
+                    custom_templates=NUCLEI_CUSTOM_TEMPLATES,
+                    selected_custom_templates=NUCLEI_SELECTED_CUSTOM_TEMPLATES,
+                    tags=NUCLEI_TAGS,
+                    exclude_tags=NUCLEI_EXCLUDE_TAGS,
+                    rate_limit=NUCLEI_RATE_LIMIT,
+                    bulk_size=NUCLEI_BULK_SIZE,
+                    concurrency=NUCLEI_CONCURRENCY,
+                    timeout=NUCLEI_TIMEOUT,
+                    retries=NUCLEI_RETRIES,
+                    dast_mode=False,
+                    new_templates_only=NUCLEI_NEW_TEMPLATES_ONLY,
+                    headless=NUCLEI_HEADLESS,
+                    system_resolvers=NUCLEI_SYSTEM_RESOLVERS,
+                    follow_redirects=NUCLEI_FOLLOW_REDIRECTS,
+                    max_redirects=NUCLEI_MAX_REDIRECTS,
+                    interactsh=NUCLEI_INTERACTSH,
+                )
+                d_findings, d_fps, d_duration, _ = _execute_nuclei_pass(
+                    detection_cmd, detection_output_file, label="DETECTION"
+                )
             findings.extend(d_findings)
             false_positives_filtered.extend(d_fps)
 

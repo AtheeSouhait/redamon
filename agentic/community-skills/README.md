@@ -9,7 +9,6 @@ Ready-to-use attack skill workflows contributed by the community. Download any `
 | [api_testing.md](api_testing.md) | [@Shafranpackeer](https://github.com/Shafranpackeer) | JWT exploitation, GraphQL attacks, REST API vulns, 403 bypass |
 | [xss_exploitation.md](xss_exploitation.md) | [@Shafranpackeer](https://github.com/Shafranpackeer) | Reflected, stored, DOM-based XSS with WAF bypass techniques |
 | [sqli_exploitation.md](sqli_exploitation.md) | [@Shafranpackeer](https://github.com/Shafranpackeer) | Advanced SQL injection beyond sqlmap basics |
-| [ssrf_exploitation.md](ssrf_exploitation.md) | [@Shafranpackeer](https://github.com/Shafranpackeer) | SSRF, cloud metadata extraction, DNS rebinding |
 
 ## Contributing
 

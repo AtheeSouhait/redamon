@@ -78,6 +78,27 @@ from .xss_prompts import (
     XSS_PAYLOAD_REFERENCE,
 )
 
+# Re-export from SSRF prompts
+from .ssrf_prompts import (
+    SSRF_TOOLS,
+    SSRF_OOB_WORKFLOW,
+    SSRF_GOPHER_CHAINS,
+    SSRF_DNS_REBINDING,
+    SSRF_PAYLOAD_REFERENCE,
+    SSRF_CLOUD_PROVIDER_BLOCKS,
+    SSRF_CLOUD_DISABLED_STUB,
+)
+
+# Re-export from RCE prompts
+from .rce_prompts import (
+    RCE_TOOLS,
+    RCE_AGGRESSIVE_DISABLED,
+    RCE_AGGRESSIVE_ENABLED,
+    RCE_OOB_WORKFLOW,
+    RCE_DESERIALIZATION_WORKFLOW,
+    RCE_PAYLOAD_REFERENCE,
+)
+
 # Re-export from unclassified attack path prompts
 from .unclassified_prompts import UNCLASSIFIED_EXPLOIT_TOOLS
 
@@ -289,6 +310,84 @@ def get_phase_tools(
                 parts.append(XSS_BLIND_WORKFLOW)
             parts.append(XSS_PAYLOAD_REFERENCE)
             return True
+        elif (attack_path_type == "ssrf"
+                and "ssrf" in enabled_builtins
+                and "execute_curl" in allowed_tools):
+            ssrf_oob_enabled = get_setting('SSRF_OOB_CALLBACK_ENABLED', True)
+            ssrf_cloud_enabled = get_setting('SSRF_CLOUD_METADATA_ENABLED', True)
+            ssrf_gopher_enabled = get_setting('SSRF_GOPHER_ENABLED', True)
+            ssrf_rebind_enabled = get_setting('SSRF_DNS_REBINDING_ENABLED', True)
+            ssrf_payref_enabled = get_setting('SSRF_PAYLOAD_REFERENCE_ENABLED', True)
+
+            # Build cloud section: filter SSRF_CLOUD_PROVIDER_BLOCKS by enabled
+            # providers if cloud-metadata is on, else inject the disabled stub.
+            if ssrf_cloud_enabled:
+                providers_csv = get_setting('SSRF_CLOUD_PROVIDERS', 'aws,gcp,azure,digitalocean,alibaba')
+                requested = [p.strip().lower() for p in providers_csv.split(',') if p.strip()]
+                cloud_blocks = [SSRF_CLOUD_PROVIDER_BLOCKS[p] for p in requested if p in SSRF_CLOUD_PROVIDER_BLOCKS]
+                ssrf_cloud_section = "\n".join(cloud_blocks) if cloud_blocks else SSRF_CLOUD_DISABLED_STUB
+            else:
+                ssrf_cloud_section = SSRF_CLOUD_DISABLED_STUB
+
+            # Build custom-targets section from free-text setting
+            custom_targets = (get_setting('SSRF_CUSTOM_INTERNAL_TARGETS', '') or '').strip()
+            if custom_targets:
+                ssrf_custom_targets_section = (
+                    "## SITE-SPECIFIC INTERNAL TARGETS\n\n"
+                    "The operator has flagged these internal hosts/IPs for prioritized probing:\n\n"
+                    f"```\n{custom_targets}\n```\n\n"
+                    "Probe these alongside the generic loopback / RFC1918 sweep in Step 3."
+                )
+            else:
+                ssrf_custom_targets_section = ""
+
+            ssrf_settings = {
+                'ssrf_oob_callback_enabled': ssrf_oob_enabled,
+                'ssrf_cloud_metadata_enabled': ssrf_cloud_enabled,
+                'ssrf_gopher_enabled': ssrf_gopher_enabled,
+                'ssrf_dns_rebinding_enabled': ssrf_rebind_enabled,
+                'ssrf_payload_reference_enabled': ssrf_payref_enabled,
+                'ssrf_request_timeout': get_setting('SSRF_REQUEST_TIMEOUT', 10),
+                'ssrf_port_scan_ports': get_setting('SSRF_PORT_SCAN_PORTS',
+                    '22,80,443,2375,3306,5432,6379,8080,8500,9200,27017'),
+                'ssrf_internal_ranges': get_setting('SSRF_INTERNAL_RANGES',
+                    '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16'),
+                'ssrf_oob_provider': get_setting('SSRF_OOB_PROVIDER', 'oast.fun'),
+                'ssrf_cloud_providers': get_setting('SSRF_CLOUD_PROVIDERS',
+                    'aws,gcp,azure,digitalocean,alibaba') if ssrf_cloud_enabled else 'disabled',
+                'ssrf_cloud_section': ssrf_cloud_section,
+                'ssrf_custom_targets_section': ssrf_custom_targets_section,
+            }
+            parts.append(SSRF_TOOLS.format(**ssrf_settings))
+            if ssrf_oob_enabled and "kali_shell" in allowed_tools:
+                parts.append(SSRF_OOB_WORKFLOW)
+            if ssrf_gopher_enabled:
+                parts.append(SSRF_GOPHER_CHAINS)
+            if ssrf_rebind_enabled:
+                parts.append(SSRF_DNS_REBINDING)
+            if ssrf_payref_enabled:
+                parts.append(SSRF_PAYLOAD_REFERENCE)
+            return True
+        elif (attack_path_type == "rce"
+                and "rce" in enabled_builtins
+                and "kali_shell" in allowed_tools):
+            rce_oob_enabled = get_setting('RCE_OOB_CALLBACK_ENABLED', True)
+            rce_deser_enabled = get_setting('RCE_DESERIALIZATION_ENABLED', True)
+            rce_aggressive = get_setting('RCE_AGGRESSIVE_PAYLOADS', False)
+            rce_aggressive_block = RCE_AGGRESSIVE_ENABLED if rce_aggressive else RCE_AGGRESSIVE_DISABLED
+            rce_settings = {
+                'rce_oob_callback_enabled': rce_oob_enabled,
+                'rce_deserialization_enabled': rce_deser_enabled,
+                'rce_aggressive_payloads': rce_aggressive,
+                'rce_aggressive_block': rce_aggressive_block,
+            }
+            parts.append(RCE_TOOLS.format(**rce_settings))
+            if rce_oob_enabled:
+                parts.append(RCE_OOB_WORKFLOW)
+            if rce_deser_enabled:
+                parts.append(RCE_DESERIALIZATION_WORKFLOW)
+            parts.append(RCE_PAYLOAD_REFERENCE)
+            return True
         elif ("cve_exploit" == attack_path_type
                 and "cve_exploit" in enabled_builtins
                 and "metasploit_console" in allowed_tools):
@@ -406,6 +505,25 @@ __all__ = [
     "SQLI_TOOLS",
     "SQLI_OOB_WORKFLOW",
     "SQLI_PAYLOAD_REFERENCE",
+    # XSS
+    "XSS_TOOLS",
+    "XSS_BLIND_WORKFLOW",
+    "XSS_PAYLOAD_REFERENCE",
+    # SSRF
+    "SSRF_TOOLS",
+    "SSRF_OOB_WORKFLOW",
+    "SSRF_GOPHER_CHAINS",
+    "SSRF_DNS_REBINDING",
+    "SSRF_PAYLOAD_REFERENCE",
+    "SSRF_CLOUD_PROVIDER_BLOCKS",
+    "SSRF_CLOUD_DISABLED_STUB",
+    # RCE
+    "RCE_TOOLS",
+    "RCE_AGGRESSIVE_DISABLED",
+    "RCE_AGGRESSIVE_ENABLED",
+    "RCE_OOB_WORKFLOW",
+    "RCE_DESERIALIZATION_WORKFLOW",
+    "RCE_PAYLOAD_REFERENCE",
     # Unclassified attack path
     "UNCLASSIFIED_EXPLOIT_TOOLS",
     # Post-exploitation

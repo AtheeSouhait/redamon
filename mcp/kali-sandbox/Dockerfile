@@ -65,6 +65,11 @@ RUN apt-get install -y --fix-missing \
     testssl.sh \
     # Command injection exploitation
     commix \
+    # Java deserialization gadget chains (used by the RCE built-in skill)
+    # Source: https://github.com/frohoff/ysoserial (MIT). Kali ships a
+    # `ysoserial` wrapper that points at /usr/share/ysoserial/ysoserial.jar.
+    default-jre-headless \
+    ysoserial \
     # DNS enumeration (zone transfers, SRV, DNSSEC walk)
     dnsrecon \
     # Custom wordlist generation from target websites

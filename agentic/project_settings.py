@@ -186,6 +186,24 @@ DEFAULT_AGENT_SETTINGS: dict[str, Any] = {
     'XSS_BLIND_CALLBACK_ENABLED': False,  # Allow interactsh-based blind XSS callbacks (sends data OOB to oast.fun)
     'XSS_CSP_BYPASS_ENABLED': True,       # Include CSP bypass guidance in the workflow prompt
 
+    # SSRF Testing
+    'SSRF_OOB_CALLBACK_ENABLED': True,        # Allow interactsh blind-SSRF callbacks (sends DNS/HTTP probes via oast.fun)
+    'SSRF_CLOUD_METADATA_ENABLED': True,      # Allow cloud-metadata pivots (AWS IMDS, GCP/Azure metadata, etc.)
+    'SSRF_GOPHER_ENABLED': True,              # Allow protocol-smuggling payloads (gopher, dict, file) and Redis/FCGI/Docker RCE chains
+    'SSRF_DNS_REBINDING_ENABLED': True,       # Allow DNS-rebinding bypasses via 1u.ms / nip.io / rbndr.us
+    'SSRF_PAYLOAD_REFERENCE_ENABLED': True,   # Inject the advanced payload reference + HackerOne precedent tables (~3 KB extra)
+    'SSRF_REQUEST_TIMEOUT': 10,               # curl --max-time / --connect-timeout for SSRF probes (seconds)
+    'SSRF_PORT_SCAN_PORTS': '22,80,443,2375,3306,5432,6379,8080,8500,9200,27017',  # Comma-separated ports to scan via SSRF
+    'SSRF_INTERNAL_RANGES': '127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16',  # Comma-separated CIDR ranges considered internal
+    'SSRF_OOB_PROVIDER': 'oast.fun',          # interactsh-client server for OOB callbacks
+    'SSRF_CLOUD_PROVIDERS': 'aws,gcp,azure,digitalocean,alibaba',  # Comma-separated cloud providers in scope (filters cloud-metadata section)
+    'SSRF_CUSTOM_INTERNAL_TARGETS': '',       # Free-text: site-specific internal hostnames/IPs the agent should prioritize (one per line)
+
+    # RCE / Command Injection Testing
+    'RCE_OOB_CALLBACK_ENABLED': True,         # Allow interactsh DNS/HTTP oracle for blind-RCE detection (sends probes via oast.fun)
+    'RCE_DESERIALIZATION_ENABLED': True,      # Include the Java/PHP/Python/Ruby deserialization gadget workflow (ysoserial) in the RCE prompt
+    'RCE_AGGRESSIVE_PAYLOADS': False,         # If True, permit Step 7: file write, persistent web shells, container/k8s escape probes. Default False = read-only proofs only.
+
     # Attack Skill Configuration
     'ATTACK_SKILL_CONFIG': {
         'builtIn': {
@@ -195,6 +213,8 @@ DEFAULT_AGENT_SETTINGS: dict[str, Any] = {
             'denial_of_service': False,
             'sql_injection': True,
             'xss': True,
+            'ssrf': False,
+            'rce': True,
         },
         'user': {},
     },
@@ -324,6 +344,22 @@ def fetch_agent_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['DOS_MAX_ATTEMPTS'] = project.get('dosMaxAttempts', DEFAULT_AGENT_SETTINGS['DOS_MAX_ATTEMPTS'])
     settings['DOS_CONCURRENT_CONNECTIONS'] = project.get('dosConcurrentConnections', DEFAULT_AGENT_SETTINGS['DOS_CONCURRENT_CONNECTIONS'])
     settings['DOS_ASSESSMENT_ONLY'] = project.get('dosAssessmentOnly', DEFAULT_AGENT_SETTINGS['DOS_ASSESSMENT_ONLY'])
+    # SSRF
+    settings['SSRF_OOB_CALLBACK_ENABLED'] = project.get('ssrfOobCallbackEnabled', DEFAULT_AGENT_SETTINGS['SSRF_OOB_CALLBACK_ENABLED'])
+    settings['SSRF_CLOUD_METADATA_ENABLED'] = project.get('ssrfCloudMetadataEnabled', DEFAULT_AGENT_SETTINGS['SSRF_CLOUD_METADATA_ENABLED'])
+    settings['SSRF_GOPHER_ENABLED'] = project.get('ssrfGopherEnabled', DEFAULT_AGENT_SETTINGS['SSRF_GOPHER_ENABLED'])
+    settings['SSRF_DNS_REBINDING_ENABLED'] = project.get('ssrfDnsRebindingEnabled', DEFAULT_AGENT_SETTINGS['SSRF_DNS_REBINDING_ENABLED'])
+    settings['SSRF_PAYLOAD_REFERENCE_ENABLED'] = project.get('ssrfPayloadReferenceEnabled', DEFAULT_AGENT_SETTINGS['SSRF_PAYLOAD_REFERENCE_ENABLED'])
+    settings['SSRF_REQUEST_TIMEOUT'] = project.get('ssrfRequestTimeout', DEFAULT_AGENT_SETTINGS['SSRF_REQUEST_TIMEOUT'])
+    settings['SSRF_PORT_SCAN_PORTS'] = project.get('ssrfPortScanPorts', DEFAULT_AGENT_SETTINGS['SSRF_PORT_SCAN_PORTS'])
+    settings['SSRF_INTERNAL_RANGES'] = project.get('ssrfInternalRanges', DEFAULT_AGENT_SETTINGS['SSRF_INTERNAL_RANGES'])
+    settings['SSRF_OOB_PROVIDER'] = project.get('ssrfOobProvider', DEFAULT_AGENT_SETTINGS['SSRF_OOB_PROVIDER'])
+    settings['SSRF_CLOUD_PROVIDERS'] = project.get('ssrfCloudProviders', DEFAULT_AGENT_SETTINGS['SSRF_CLOUD_PROVIDERS'])
+    settings['SSRF_CUSTOM_INTERNAL_TARGETS'] = project.get('ssrfCustomInternalTargets', DEFAULT_AGENT_SETTINGS['SSRF_CUSTOM_INTERNAL_TARGETS'])
+    # RCE
+    settings['RCE_OOB_CALLBACK_ENABLED'] = project.get('rceOobCallbackEnabled', DEFAULT_AGENT_SETTINGS['RCE_OOB_CALLBACK_ENABLED'])
+    settings['RCE_DESERIALIZATION_ENABLED'] = project.get('rceDeserializationEnabled', DEFAULT_AGENT_SETTINGS['RCE_DESERIALIZATION_ENABLED'])
+    settings['RCE_AGGRESSIVE_PAYLOADS'] = project.get('rceAggressivePayloads', DEFAULT_AGENT_SETTINGS['RCE_AGGRESSIVE_PAYLOADS'])
     settings['ATTACK_SKILL_CONFIG'] = project.get('attackSkillConfig', DEFAULT_AGENT_SETTINGS['ATTACK_SKILL_CONFIG'])
     settings['USER_ATTACK_SKILLS'] = project.get('userAttackSkills', DEFAULT_AGENT_SETTINGS['USER_ATTACK_SKILLS'])
 

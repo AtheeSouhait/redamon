@@ -595,6 +595,9 @@ const Nuclei = (
       <strong>Domain</strong> and <strong>Technology</strong> are listed as inputs but they don't produce target URLs. They feed the post-scan enrichment phases: Technology → CVE Lookup, Domain → Security Checks (SPF, DMARC, DNSSEC, zone transfer).
     </p>
     <p style={paraStyle}>
+      <strong>Include Tags</strong> drives whether the built-in ~8000-template pool runs at all. With tags set, nuclei loads the built-in pool and filters by those tags. With tags <em>empty</em>, the built-in pool is <em>not</em> loaded — only the custom templates you've selected run. If <em>both</em> tags and custom templates are empty, the detection pass is skipped (the run becomes a no-op unless DAST mode produces something). Default tags: <span style={codeStyle}>cve, xss, sqli, rce, lfi, ssrf, xxe, ssti</span>. Default exclude: <span style={codeStyle}>dos, fuzz</span> (kept out of production scans).
+    </p>
+    <p style={paraStyle}>
       <strong>DAST mode</strong> is a <em>filter</em>, not an additional source. When enabled, nuclei runs ONLY templates with a <span style={codeStyle}>fuzz:</span> directive (~300 of ~8000) — detection templates and your custom detection templates are skipped. Combine with DAST-native tags (<span style={codeStyle}>sqli, xss, ssrf, xxe, ssti, lfi, rce</span>); detection-class tags like <span style={codeStyle}>graphql, apollo, hasura, exposure</span> intersect to an empty set and the scan fatals.
     </p>
 

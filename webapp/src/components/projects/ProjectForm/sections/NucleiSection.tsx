@@ -302,9 +302,13 @@ export function NucleiSection({ data, updateField, onRun }: NucleiSectionProps) 
                   className="textInput"
                   value={(data.nucleiTags ?? []).join(', ')}
                   onChange={(e) => updateField('nucleiTags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                  placeholder="cve, xss, sqli, rce (empty = all)"
+                  placeholder="cve, xss, sqli, rce (empty = custom templates only)"
                 />
-                <span className={styles.fieldHint}>Popular: cve, xss, sqli, rce, lfi, ssrf, xxe, ssti</span>
+                <span className={styles.fieldHint}>
+                  Popular: cve, xss, sqli, rce, lfi, ssrf, xxe, ssti.
+                  <strong> Empty</strong> means the built-in 8000-template pool will <em>not</em> run &mdash;
+                  only the custom templates you select below. If both are empty, the detection pass is skipped.
+                </span>
               </div>
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Exclude Tags</label>
@@ -315,7 +319,7 @@ export function NucleiSection({ data, updateField, onRun }: NucleiSectionProps) 
                   onChange={(e) => updateField('nucleiExcludeTags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                   placeholder="dos, fuzz"
                 />
-                <span className={styles.fieldHint}>Exclude dos, fuzz for production</span>
+                <span className={styles.fieldHint}>Excluding dos, fuzz is recommended for production scans</span>
               </div>
             </div>
           </div>

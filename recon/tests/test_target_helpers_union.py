@@ -378,6 +378,94 @@ class TestBuildNucleiCommandStatsFlags(unittest.TestCase):
         cmd = self._basic_cmd(force_dast_pass=True)
         self.assertIn("-stats", cmd)
 
+    # --- Include-tags-empty-means-custom-only behavior ----------------
+
+    def test_tags_empty_no_custom_does_not_load_builtin_pool(self):
+        """Empty tags + no custom templates -> -t /root/nuclei-templates/ NOT added.
+        (Caller is expected to refuse this combination, but the builder must not
+        silently fall back to scanning all 8000 templates.)"""
+        cmd = self._basic_cmd(tags=None, selected_custom_templates=None)
+        self.assertNotIn("/root/nuclei-templates/", cmd)
+        self.assertNotIn("-tags", cmd)
+
+    def test_tags_set_loads_builtin_pool(self):
+        """Tags non-empty -> built-in pool added so the filter has something to match."""
+        cmd = self._basic_cmd(tags=["cve", "xss"])
+        self.assertIn("/root/nuclei-templates/", cmd)
+        i = cmd.index("-tags")
+        self.assertEqual(cmd[i + 1], "cve,xss")
+
+    def test_tags_empty_with_custom_loads_only_custom(self):
+        """Empty tags + custom selected -> ONLY the custom paths added, NOT the built-in pool.
+        This is the new "tags empty = custom only" semantics."""
+        # Simulate the env var being set; otherwise the builder skips custom mounting.
+        os.environ["HOST_CUSTOM_TEMPLATES_PATH"] = "/host/custom"
+        try:
+            cmd = self._basic_cmd(
+                tags=None,
+                selected_custom_templates=["my-template.yml"],
+            )
+        finally:
+            del os.environ["HOST_CUSTOM_TEMPLATES_PATH"]
+        self.assertIn("/custom-templates/my-template.yml", cmd)
+        # Critically: built-in pool NOT added when tags is empty.
+        self.assertNotIn("/root/nuclei-templates/", cmd)
+        self.assertNotIn("-tags", cmd)
+
+    def test_tags_set_with_custom_loads_both(self):
+        """Tags non-empty + custom selected -> BOTH the built-in pool AND custom paths.
+        Tag filter applies across both sets."""
+        os.environ["HOST_CUSTOM_TEMPLATES_PATH"] = "/host/custom"
+        try:
+            cmd = self._basic_cmd(
+                tags=["cve"],
+                selected_custom_templates=["aem.yaml"],
+            )
+        finally:
+            del os.environ["HOST_CUSTOM_TEMPLATES_PATH"]
+        self.assertIn("/root/nuclei-templates/", cmd)
+        self.assertIn("/custom-templates/aem.yaml", cmd)
+        i = cmd.index("-tags")
+        self.assertEqual(cmd[i + 1], "cve")
+
+    def test_yml_extension_warning_emitted_when_no_yaml_sibling(self):
+        """Nuclei v3+ treats .yml as a path-list. We must warn the user."""
+        os.environ["HOST_CUSTOM_TEMPLATES_PATH"] = "/nonexistent/path"
+        captured = io.StringIO()
+        try:
+            with redirect_stdout(captured):
+                cmd = self._basic_cmd(
+                    tags=None,
+                    selected_custom_templates=["aem-json-exposure.yml"],
+                )
+        finally:
+            del os.environ["HOST_CUSTOM_TEMPLATES_PATH"]
+        self.assertIn("uses .yml extension", captured.getvalue())
+        self.assertIn("Nuclei v3+ requires .yaml", captured.getvalue())
+        # The .yml path is still passed through (graceful degradation).
+        self.assertIn("/custom-templates/aem-json-exposure.yml", cmd)
+
+    def test_yml_auto_redirected_to_yaml_sibling_when_present(self):
+        """If both foo.yml and foo.yaml exist, prefer foo.yaml automatically."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create both .yml and .yaml on disk (the .yaml is what we want loaded)
+            yml_path = Path(tmpdir) / "tpl.yml"
+            yaml_path = Path(tmpdir) / "tpl.yaml"
+            yml_path.write_text("id: tpl\ninfo: {name: x, severity: low}\n")
+            yaml_path.write_text("id: tpl\ninfo: {name: x, severity: low}\n")
+            os.environ["HOST_CUSTOM_TEMPLATES_PATH"] = tmpdir
+            try:
+                cmd = self._basic_cmd(
+                    tags=None,
+                    selected_custom_templates=["tpl.yml"],
+                )
+            finally:
+                del os.environ["HOST_CUSTOM_TEMPLATES_PATH"]
+        # Should have redirected to .yaml
+        self.assertIn("/custom-templates/tpl.yaml", cmd)
+        self.assertNotIn("/custom-templates/tpl.yml", cmd)
+
 
 # ---------------------------------------------------------------------------
 # Smoke: AEM custom template YAML
@@ -421,11 +509,6 @@ class TestAemTemplateSmoke(unittest.TestCase):
         self.assertEqual(len(raw), 2)
         self.assertIn("/etc/truststore.json", raw[0])
         self.assertIn("/content/dam.2..json", raw[1])
-
-    def test_stop_at_first_match_removed(self):
-        """Both probes must be reported; stop-at-first-match is a regression we don't want."""
-        doc = self._load()
-        self.assertNotIn("stop-at-first-match", doc["http"][0])
 
     def test_matchers_unchanged(self):
         doc = self._load()

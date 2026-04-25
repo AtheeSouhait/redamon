@@ -143,14 +143,47 @@ def build_nuclei_command(
         for template in custom_templates:
             cmd.extend(["-t", template])
 
-    # Include individually selected custom templates (alongside built-in)
-    if selected_custom_templates and os.environ.get("HOST_CUSTOM_TEMPLATES_PATH"):
-        # If no specific templates were requested, we must explicitly include
-        # the built-in templates too — otherwise nuclei only scans the custom ones
-        if not templates:
+    # Built-in template pool + custom selection -- new semantics:
+    #   tags is now the gate that decides whether the built-in pool is loaded.
+    #     - tags non-empty: load /root/nuclei-templates/ (filtered by -tags below)
+    #                       + any selected custom templates alongside.
+    #     - tags empty:     load ONLY the selected custom templates (no built-in pool).
+    #                       If no custom is selected either, the caller is expected
+    #                       to have refused before reaching here -- omitting -t lets
+    #                       nuclei fall back to its default directory.
+    host_custom_templates = os.environ.get("HOST_CUSTOM_TEMPLATES_PATH", "")
+    custom_selected = bool(selected_custom_templates) and bool(host_custom_templates)
+    explicit_t_paths = bool(templates) or bool(custom_templates)
+
+    if custom_selected:
+        if tags and not explicit_t_paths:
+            # Tags filter present -> include the built-in pool so it has something to match.
             cmd.extend(["-t", "/root/nuclei-templates/"])
+        # When tags is empty here, we deliberately skip the built-in pool so the
+        # scan runs ONLY the custom templates the user picked.
         for tpl_path in selected_custom_templates:
-            cmd.extend(["-t", f"/custom-templates/{tpl_path}"])
+            # Nuclei v3+ only recognizes `.yaml` as a template extension; a `.yml`
+            # path is interpreted as a path-list file (one template path per
+            # line) and the scan fatals with "no templates provided for scan".
+            # If the file on disk is .yml but a .yaml sibling exists, prefer
+            # the .yaml. Otherwise pass-through and let nuclei's own error
+            # surface (the upload handler normalizes new uploads to .yaml).
+            normalized_path = tpl_path
+            if tpl_path.lower().endswith(".yml"):
+                yaml_sibling = tpl_path[:-4] + ".yaml"
+                yaml_disk_path = os.path.join(host_custom_templates, yaml_sibling)
+                if os.path.exists(yaml_disk_path):
+                    normalized_path = yaml_sibling
+                else:
+                    print(
+                        f"[!][Nuclei] Custom template '{tpl_path}' uses .yml extension. "
+                        "Nuclei v3+ requires .yaml for templates (a .yml is read as "
+                        "a path-list file). Rename to .yaml or re-upload via the UI."
+                    )
+            cmd.extend(["-t", f"/custom-templates/{normalized_path}"])
+    elif tags and not explicit_t_paths:
+        # Tags-only scan: point nuclei at the built-in pool explicitly.
+        cmd.extend(["-t", "/root/nuclei-templates/"])
 
     # Tags
     if tags:
