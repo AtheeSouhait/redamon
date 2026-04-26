@@ -270,6 +270,14 @@ docker compose --profile tools down --rmi local   # Remove built images
 docker compose --profile tools down --rmi local --volumes --remove-orphans  # Full cleanup
 ```
 
+**Reclaim disk space:**
+```bash
+docker system df                                  # Show Docker disk usage (add -v for per-image breakdown)
+docker image prune -f                             # Remove dangling images (auto-run by `./redamon.sh update`)
+docker builder prune -f                           # Clear build cache (NOT auto-cleaned — can grow to many GB over time)
+docker container prune -f                         # Remove stopped containers
+```
+
 > For a complete development reference -- hot-reload rules, common commands, important rules, and AI-assisted coding guidelines -- see the **[Developer Guide](readmes/README.DEV.md)**.
 
 ---
