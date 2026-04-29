@@ -68,6 +68,8 @@ interface ViewTabsProps {
   globalFilter?: string
   onGlobalFilterChange?: (value: string) => void
   onExport?: () => void
+  onExportJson?: () => void
+  onExportMarkdown?: () => void
   totalRows?: number
   filteredRows?: number
   // Sessions badge
@@ -86,6 +88,8 @@ interface ViewTabsProps {
   jsReconSearch?: string
   onJsReconSearchChange?: (value: string) => void
   onJsReconExportXlsx?: () => void
+  onJsReconExportJson?: () => void
+  onJsReconExportMarkdown?: () => void
   jsReconMeta?: string
   // View mode toggles (shown in right section when graph active)
   is3D?: boolean
@@ -101,6 +105,8 @@ export const ViewTabs = memo(function ViewTabs({
   globalFilter,
   onGlobalFilterChange,
   onExport,
+  onExportJson,
+  onExportMarkdown,
   totalRows,
   filteredRows,
   sessionCount,
@@ -114,6 +120,8 @@ export const ViewTabs = memo(function ViewTabs({
   jsReconSearch,
   onJsReconSearchChange,
   onJsReconExportXlsx,
+  onJsReconExportJson,
+  onJsReconExportMarkdown,
   jsReconMeta,
   is3D,
   showLabels,
@@ -455,10 +463,22 @@ export const ViewTabs = memo(function ViewTabs({
               ? `${totalRows}`
               : `${filteredRows}/${totalRows}`}
           </span>
-          <button className={styles.exportBtn} onClick={onExport} aria-label="Export to Excel">
+          <button className={styles.exportBtn} onClick={onExport} aria-label="Export to Excel" title="Export to Excel">
             <Download size={12} />
             <span>XLSX</span>
           </button>
+          {onExportJson && (
+            <button className={styles.exportBtn} onClick={onExportJson} aria-label="Export to JSON" title="Export to JSON">
+              <Download size={12} />
+              <span>JSON</span>
+            </button>
+          )}
+          {onExportMarkdown && (
+            <button className={styles.exportBtn} onClick={onExportMarkdown} aria-label="Export to Markdown" title="Export to Markdown">
+              <Download size={12} />
+              <span>MD</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -477,9 +497,21 @@ export const ViewTabs = memo(function ViewTabs({
             />
           </div>
           {onJsReconExportXlsx && (
-            <button className={styles.exportBtn} onClick={onJsReconExportXlsx} aria-label="Export to Excel">
+            <button className={styles.exportBtn} onClick={onJsReconExportXlsx} aria-label="Export to Excel" title="Export to Excel">
               <Download size={12} />
               <span>XLSX</span>
+            </button>
+          )}
+          {onJsReconExportJson && (
+            <button className={styles.exportBtn} onClick={onJsReconExportJson} aria-label="Export to JSON" title="Export to JSON">
+              <Download size={12} />
+              <span>JSON</span>
+            </button>
+          )}
+          {onJsReconExportMarkdown && (
+            <button className={styles.exportBtn} onClick={onJsReconExportMarkdown} aria-label="Export to Markdown" title="Export to Markdown">
+              <Download size={12} />
+              <span>MD</span>
             </button>
           )}
         </div>

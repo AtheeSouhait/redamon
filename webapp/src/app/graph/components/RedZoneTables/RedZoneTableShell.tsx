@@ -1,8 +1,14 @@
 'use client'
 
-import { memo, type ReactNode } from 'react'
+import { memo, useCallback, type ReactNode } from 'react'
 import { Loader2, AlertTriangle, Database, Search, Download, RefreshCw, SearchX } from 'lucide-react'
 import styles from './RedZoneTableShell.module.css'
+import {
+  exportRedZoneXlsx,
+  exportRedZoneJson,
+  exportRedZoneMarkdown,
+  type RedZoneExportConfig,
+} from './exportXlsx'
 
 interface RedZoneTableShellProps {
   title: string
@@ -10,6 +16,9 @@ interface RedZoneTableShellProps {
   search: string
   onSearchChange: (value: string) => void
   searchPlaceholder?: string
+  /** Provide rows + columns to render XLSX/JSON/MD export buttons. */
+  exportConfig?: RedZoneExportConfig
+  /** Legacy single-button XLSX callback (kept for back-compat). */
   onExport?: () => void
   onRefresh?: () => void
   isLoading: boolean
@@ -27,6 +36,7 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
   search,
   onSearchChange,
   searchPlaceholder = 'Search...',
+  exportConfig,
   onExport,
   onRefresh,
   isLoading,
@@ -37,6 +47,19 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
   noMatchLabel = 'No rows match your search.',
   children,
 }: RedZoneTableShellProps) {
+  const handleXlsx = useCallback(() => {
+    if (!exportConfig) return
+    exportRedZoneXlsx(exportConfig.rows, exportConfig.sheetName, exportConfig.columns, exportConfig.fileSlug)
+  }, [exportConfig])
+  const handleJson = useCallback(() => {
+    if (!exportConfig) return
+    exportRedZoneJson(exportConfig.rows, exportConfig.sheetName, exportConfig.columns, exportConfig.fileSlug)
+  }, [exportConfig])
+  const handleMd = useCallback(() => {
+    if (!exportConfig) return
+    exportRedZoneMarkdown(exportConfig.rows, exportConfig.sheetName, exportConfig.columns, exportConfig.fileSlug)
+  }, [exportConfig])
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -64,12 +87,27 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
               <RefreshCw size={12} />
             </button>
           )}
-          {onExport && (
+          {exportConfig ? (
+            <>
+              <button className={styles.exportBtn} onClick={handleXlsx} aria-label="Export to Excel" title="Export to Excel">
+                <Download size={12} />
+                <span>XLSX</span>
+              </button>
+              <button className={styles.exportBtn} onClick={handleJson} aria-label="Export to JSON" title="Export to JSON">
+                <Download size={12} />
+                <span>JSON</span>
+              </button>
+              <button className={styles.exportBtn} onClick={handleMd} aria-label="Export to Markdown" title="Export to Markdown">
+                <Download size={12} />
+                <span>MD</span>
+              </button>
+            </>
+          ) : onExport ? (
             <button className={styles.exportBtn} onClick={onExport} aria-label="Export to Excel">
               <Download size={12} />
               <span>XLSX</span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 

@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/samugit83/redamon/stargazers"><img height="24" src="https://img.shields.io/github/stars/samugit83/redamon?style=flat&color=2E8B57&label=Stars" alt="GitHub Stars"/></a>
-  <img height="24" src="https://img.shields.io/badge/v4.4.0-release-2E8B57?style=flat" alt="Version 4.4.0"/>
+  <img height="24" src="https://img.shields.io/badge/v4.5.0-release-2E8B57?style=flat" alt="Version 4.5.0"/>
   <img height="24" src="https://img.shields.io/badge/WARNING-SECURITY%20TOOL-B22222?style=flat" alt="Security Tool Warning"/>
   <img height="24" src="https://img.shields.io/badge/LICENSE-MIT-4169A1?style=flat" alt="MIT License"/>
   <img height="24" src="https://img.shields.io/badge/END--TO--END-PIPELINE-A01025?style=flat" alt="End-to-End Pipeline"/>
@@ -470,6 +470,7 @@ A **LangGraph-based autonomous agent** implementing the ReAct pattern. It progre
 |:-----:|-------|-------------|:------:|:----------:|
 | **Intelligence** | **query_graph** | Neo4j graph queries -- primary source of truth for recon data | All | -- |
 | | **web_search** | Internet search via Tavily for CVE details, exploit PoCs, advisories | All | -- |
+| | **cve_intel** | ProjectDiscovery `vulnx` -- structured CVE intelligence aggregating NVD + CISA KEV + EPSS + HackerOne + GitHub PoCs + Nuclei template availability. 69 lucene-filterable fields. Optional PDCP key (per-user, anonymous mode = 10 req/min) | All | network_recon :8000 |
 | | **tradecraft_lookup** | User-curated catalog of trusted security knowledge URLs (HackTricks, PayloadsAllTheThings, CVE PoC repos, vendor blogs) -- 6 auto-detected resource types, sitemap-driven section pick, sqlite+disk cache | Exploit, Post | -- |
 | | **shodan** | Shodan OSINT -- host details, reverse DNS, device search | Info, Exploit | -- |
 | | **google_dork** | Google dorking via SerpAPI -- exposed files, admin panels, directory listings | Info | -- |
@@ -490,7 +491,7 @@ A **LangGraph-based autonomous agent** implementing the ReAct pattern. It progre
 | **Exploitation** | **metasploit_console** | Persistent msfconsole -- exploit execution, session management, post-exploitation | Exploit, Post | metasploit :8003 |
 | | **msf_restart** | Full Metasploit reset -- kills all sessions, clears module state | Exploit, Post | metasploit :8003 |
 | | **execute_hydra** | THC Hydra brute force -- 50+ protocols (SSH, FTP, RDP, SMB, HTTP, MySQL, etc.) | Exploit, Post | network_recon :8000 |
-| **Code Execution** | **kali_shell** | Full Kali Linux shell -- nikto, whatweb, testssl, commix, dnsrecon, dnsx, enum4linux-ng, netexec, bloodhound-python, certipy-ad, gitleaks, and 50+ CLI tools | All | network_recon :8000 |
+| **Code Execution** | **kali_shell** | Full Kali Linux shell -- nikto, whatweb, testssl, commix, sstimap, tplmap, ysoserial, phpggc, dnsrecon, dnsx, subzy, enum4linux-ng, netexec, kerbrute, bloodhound-python, bhgraph, certipy-ad, bloodyAD, jwt_tool, graphql-cop, graphqlmap, gitleaks, semgrep, hashcat, john, cewl, paramspider, Node.js + npm, Python libs (websockets, zeep, python3-saml, boto3, msal, azure-identity, google-auth, google-cloud-storage), pre-staged post-exploit toolkits at /opt/tools/{linux,windows}/ (linpeas, LinEnum, pspy64, deepce, winPEAS, PowerUp, PrivescCheck), and 70+ CLI tools | All | network_recon :8000 |
 | | **execute_code** | Write and run code files (Python, bash, Ruby, Perl, C, C++) -- no shell escaping | Exploit, Post | network_recon :8000 |
 
 <sub>All MCP tools run inside a Kali Linux sandbox container. Tools marked as dangerous require manual confirmation before execution. Stealth mode restricts active tools to passive-only or single-target operations. **Note:** WPScan is licensed under the [WPScan Public Source License](https://github.com/wpscanteam/wpscan/blob/master/LICENSE) (not MIT). Free for pentesting assessments and personal use; commercial use may require a separate license from [wpscan.com](https://wpscan.com).</sub>
@@ -553,7 +554,7 @@ An **LLM-powered Intent Router** classifies user requests into agent skills: CVE
 
 ### Chat Skills
 
-**On-demand reference injection** via `/skill` command in the agent chat. Chat Skills are tactical reference docs -- tool playbooks, vulnerability guides, framework-specific notes -- that you inject into the agent's context exactly when you need them. Type `/skill ssrf` to load SSRF expertise, or click the skill picker button for a browsable list. 36 community-contributed skills ship with RedAmon covering vulnerabilities, tooling, scan modes, frameworks, technologies, and protocols. Unlike Agent Skills (which drive classification and phase-aware workflows), Chat Skills are supplementary context that persists until you change or remove them.
+**On-demand reference injection** via `/skill` command in the agent chat. Chat Skills are tactical reference docs -- tool playbooks, vulnerability guides, framework-specific notes -- that you inject into the agent's context exactly when you need them. Type `/skill ssrf` to load SSRF expertise, or click the skill picker button for a browsable list. **46 reference skills** ship with RedAmon covering vulnerabilities (JWT, OAuth/OIDC, CSRF, race conditions, business logic, prototype pollution, ReDoS, 2FA bypass, LDAP/XPath injection, web cache poisoning, CORS, host header injection, clickjacking, CRLF, and more), tooling (sqlmap, nuclei, ffuf, nmap, httpx, naabu, katana, subfinder, semgrep), protocols (GraphQL, WebSocket, SOAP/WS-Security, SAML), technologies (Firebase, Supabase), frameworks (Next.js, FastAPI, NestJS), Active Directory (kill chain, Kerberoasting/ASREPRoast, AD-CS ESC1-15, BloodHound path-to-DA), cloud (AWS, Azure, GCP), and post-exploitation (Docker escape, Linux / Windows privesc). Unlike Agent Skills (which drive classification and phase-aware workflows), Chat Skills are supplementary context that persists until you change or remove them.
 
 > **[Wiki: Chat Skills](https://github.com/samugit83/redamon/wiki/Chat-Skills)** | **[Community Chat Skills](agentic/skills/)**
 
@@ -826,7 +827,9 @@ For questions, feedback, or collaboration inquiries: **devergo.sam@gmail.com**
 
 This project is released under the [MIT License](LICENSE).
 
-RedAmon integrates several third-party tools under their own licenses (AGPL-3.0, GPL, BSD, and others). Source code for all AGPL-licensed components is available at their upstream repositories. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the complete list.
+RedAmon integrates several third-party tools under their own licenses (MIT, Apache-2.0, BSD, GPL-2.0/3.0, AGPL-3.0, LGPL, and the WPScan Public Source License). Source code for all AGPL-licensed components is available at their upstream repositories. The full inventory and license obligations are documented in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+
+> **Commercial use note**: The Kali sandbox image bundles **WPScan**, which is governed by the WPScan Public Source License. WPScan restricts commercial use (SaaS, paid product offerings, value-added services) without a separate license from the WPScan team. Pentesting engagements and personal use are permitted. If you intend to use RedAmon in a commercial product or service, review [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) before distribution.
 
 See [DISCLAIMER.md](DISCLAIMER.md) for full terms of use, acceptable use policy, and legal compliance requirements.
 

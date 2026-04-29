@@ -158,6 +158,7 @@ DEFAULT_AGENT_SETTINGS: dict[str, Any] = {
         'metasploit_console': ['exploitation', 'post_exploitation'],
         'msf_restart': ['exploitation', 'post_exploitation'],
         'web_search': ['informational', 'exploitation', 'post_exploitation'],
+        'cve_intel': ['informational', 'exploitation', 'post_exploitation'],
         'shodan': ['informational', 'exploitation'],
         'google_dork': ['informational'],
         'tradecraft_lookup': ['exploitation', 'post_exploitation'],

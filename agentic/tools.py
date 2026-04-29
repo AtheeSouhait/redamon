@@ -1603,6 +1603,15 @@ class PhaseAwareToolExecutor:
         """Store URLScan API key for auto-injection into execute_gau config."""
         self._gau_urlscan_api_key = key
 
+    def set_cve_intel_api_key(self, key: str) -> None:
+        """Store PDCP API key for auto-injection into cve_intel (vulnx) calls.
+
+        The key is forwarded to the MCP tool as the `api_key` parameter and
+        translated into a per-call PDCP_API_KEY env var inside the kali-sandbox.
+        Never written to disk or to a global env var; never visible to the LLM.
+        """
+        self._cve_intel_api_key = key
+
     def _extract_text_from_output(self, output) -> str:
         """
         Extract clean text from MCP tool output.
@@ -1712,6 +1721,14 @@ class PhaseAwareToolExecutor:
                 # Inject URLScan API key if configured (written to ~/.gau.toml by MCP server)
                 if getattr(self, '_gau_urlscan_api_key', ''):
                     adjusted = {**tool_args, "urlscan_api_key": self._gau_urlscan_api_key}
+                else:
+                    adjusted = tool_args
+                output = await active_tool.ainvoke(adjusted)
+            elif tool_name == "cve_intel":
+                # Inject PDCP API key if configured. The MCP wrapper translates
+                # this into a per-call PDCP_API_KEY env var; LLM never sees it.
+                if getattr(self, '_cve_intel_api_key', ''):
+                    adjusted = {**tool_args, "api_key": self._cve_intel_api_key}
                 else:
                     adjusted = tool_args
                 output = await active_tool.ainvoke(adjusted)

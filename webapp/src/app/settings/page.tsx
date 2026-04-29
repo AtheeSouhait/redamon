@@ -41,6 +41,7 @@ interface UserSettings {
   onypheApiKey: string
   driftnetApiKey: string
   wpscanApiToken: string
+  pdcpApiKey: string
   ngrokAuthtoken: string
   chiselServerUrl: string
   chiselAuth: string
@@ -71,6 +72,7 @@ const EMPTY_SETTINGS: UserSettings = {
   onypheApiKey: '',
   driftnetApiKey: '',
   wpscanApiToken: '',
+  pdcpApiKey: '',
   ngrokAuthtoken: '',
   chiselServerUrl: '',
   chiselAuth: '',
@@ -102,6 +104,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   onypheApiKey: 'onyphe',
   driftnetApiKey: 'driftnet',
   wpscanApiToken: 'wpscan',
+  pdcpApiKey: 'pdcp',
 }
 
 function getProviderIcon(providerType: string): string {
@@ -531,6 +534,7 @@ export default function SettingsPage() {
           onypheApiKey: data.onypheApiKey || '',
           driftnetApiKey: data.driftnetApiKey || '',
           wpscanApiToken: data.wpscanApiToken || '',
+          pdcpApiKey: data.pdcpApiKey || '',
           ngrokAuthtoken: data.ngrokAuthtoken || '',
           chiselServerUrl: data.chiselServerUrl || '',
           chiselAuth: data.chiselAuth || '',
@@ -622,6 +626,7 @@ export default function SettingsPage() {
           onypheApiKey: data.onypheApiKey || '',
           driftnetApiKey: data.driftnetApiKey || '',
           wpscanApiToken: data.wpscanApiToken || '',
+          pdcpApiKey: data.pdcpApiKey || '',
           ngrokAuthtoken: data.ngrokAuthtoken || '',
           chiselServerUrl: data.chiselServerUrl || '',
           chiselAuth: data.chiselAuth || '',
@@ -1258,6 +1263,18 @@ export default function SettingsPage() {
               onChange={v => updateSetting('wpscanApiToken', v)}
               onConfigureRotation={() => openRotationModal('wpscanApiToken')}
               rotationInfo={rotationConfigs.wpscan || null}
+            />
+            <SecretField
+              label="PDCP API Key"
+              hint="Optional. Enriches the cve_intel tool by lifting the 10 req/min anonymous rate limit on ProjectDiscovery's CVE database (vulnx)."
+              signupUrl="https://cloud.projectdiscovery.io"
+              badges={['AI Agent']}
+              value={settings.pdcpApiKey}
+              visible={!!visibleFields.pdcpApiKey}
+              onToggle={() => toggleFieldVisibility('pdcpApiKey')}
+              onChange={v => updateSetting('pdcpApiKey', v)}
+              onConfigureRotation={() => openRotationModal('pdcpApiKey')}
+              rotationInfo={rotationConfigs.pdcp || null}
             />
             <SecretField
               label="NVD API Key"

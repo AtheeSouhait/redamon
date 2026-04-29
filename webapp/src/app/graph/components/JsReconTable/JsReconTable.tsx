@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
 import { ExternalLink } from '@/components/ui'
 import styles from './JsReconTable.module.css'
+import {
+  sanitizeXlsxCell,
+  timestampSlug,
+  downloadBlob,
+  flattenCellValue,
+  flattenForXlsx,
+  escapeMarkdownCell,
+} from '../../utils/exportHelpers'
 
 export type { JsReconData }
 
@@ -42,42 +50,89 @@ const SUB_TABS = [
 
 const PAGE_SIZE = 50
 
+interface JsReconSheet {
+  name: string
+  rows: any[]
+  columns: string[]
+}
+
+function getCol(row: any, col: string): unknown {
+  return col.includes('.') ? col.split('.').reduce((o: any, k) => o?.[k], row) : row[col]
+}
+
+function buildJsReconSheets(data: JsReconData): JsReconSheet[] {
+  return [
+    { name: 'Secrets', rows: data.secrets || [], columns: ['severity', 'name', 'redacted_value', 'matched_text', 'category', 'source_url', 'line_number', 'context', 'detection_method', 'validation.status', 'confidence', 'validator_ref'] },
+    { name: 'Endpoints', rows: data.endpoints || [], columns: ['severity', 'method', 'path', 'full_url', 'type', 'category', 'base_url', 'source_js', 'parameters', 'line_number'] },
+    { name: 'Dependencies', rows: data.dependencies || [], columns: ['severity', 'finding_type', 'package_name', 'scope', 'npm_exists', 'confidence', 'title', 'detail', 'recommendation', 'source_urls'] },
+    { name: 'Source Maps', rows: data.source_maps || [], columns: ['severity', 'finding_type', 'js_url', 'map_url', 'accessible', 'discovery_method', 'files_count', 'source_files', 'secrets_in_source', 'secrets'] },
+    { name: 'DOM Sinks', rows: data.dom_sinks || [], columns: ['severity', 'finding_type', 'type', 'pattern', 'description', 'source_url', 'line', 'confidence'] },
+    { name: 'Frameworks', rows: data.frameworks || [], columns: ['name', 'version', 'severity', 'finding_type', 'source_url', 'confidence'] },
+    { name: 'Dev Comments', rows: data.dev_comments || [], columns: ['severity', 'type', 'content', 'source_url', 'line', 'confidence'] },
+    { name: 'Cloud Assets', rows: data.cloud_assets || [], columns: ['provider', 'type', 'url', 'source_url'] },
+    { name: 'Emails', rows: data.emails || [], columns: ['email', 'category', 'source_url', 'context'] },
+    { name: 'IPs', rows: data.ip_addresses || [], columns: ['ip', 'type', 'source_url', 'context'] },
+    { name: 'Object Refs', rows: data.object_references || [], columns: ['type', 'value', 'source_url', 'context', 'potential_idor'] },
+    { name: 'Subdomains', rows: (data.discovered_subdomains || []).map(s => ({ subdomain: s })), columns: ['subdomain'] },
+    { name: 'External Domains', rows: data.external_domains || [], columns: ['domain', 'times_seen'] },
+  ]
+}
+
 export async function exportJsReconXlsx(data: JsReconData) {
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
+  const sheets = buildJsReconSheets(data)
 
-  const addSheet = (name: string, rows: any[], columns: string[]) => {
-    if (!rows.length) return
-    const wsData = rows.map(r => {
+  for (const sheet of sheets) {
+    if (!sheet.rows.length) continue
+    const wsData = sheet.rows.map(r => {
       const row: Record<string, unknown> = {}
-      for (const col of columns) {
-        const val = col.includes('.') ? col.split('.').reduce((o: any, k) => o?.[k], r) : r[col]
-        row[col] = Array.isArray(val)
-          ? val.map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v).join(', ')
-          : typeof val === 'object' && val !== null ? JSON.stringify(val) : val ?? ''
+      for (const col of sheet.columns) {
+        row[col] = sanitizeXlsxCell(flattenForXlsx(getCol(r, col)))
       }
       return row
     })
     const ws = XLSX.utils.json_to_sheet(wsData)
-    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31))
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31))
   }
 
-  addSheet('Secrets', data.secrets || [], ['severity', 'name', 'redacted_value', 'matched_text', 'category', 'source_url', 'line_number', 'context', 'detection_method', 'validation.status', 'confidence', 'validator_ref'])
-  addSheet('Endpoints', data.endpoints || [], ['severity', 'method', 'path', 'full_url', 'type', 'category', 'base_url', 'source_js', 'parameters', 'line_number'])
-  addSheet('Dependencies', data.dependencies || [], ['severity', 'finding_type', 'package_name', 'scope', 'npm_exists', 'confidence', 'title', 'detail', 'recommendation', 'source_urls'])
-  addSheet('Source Maps', data.source_maps || [], ['severity', 'finding_type', 'js_url', 'map_url', 'accessible', 'discovery_method', 'files_count', 'source_files', 'secrets_in_source', 'secrets'])
-  addSheet('DOM Sinks', data.dom_sinks || [], ['severity', 'finding_type', 'type', 'pattern', 'description', 'source_url', 'line', 'confidence'])
-  addSheet('Frameworks', data.frameworks || [], ['name', 'version', 'severity', 'finding_type', 'source_url', 'confidence'])
-  addSheet('Dev Comments', data.dev_comments || [], ['severity', 'type', 'content', 'source_url', 'line', 'confidence'])
-  addSheet('Cloud Assets', data.cloud_assets || [], ['provider', 'type', 'url', 'source_url'])
-  addSheet('Emails', data.emails || [], ['email', 'category', 'source_url', 'context'])
-  addSheet('IPs', data.ip_addresses || [], ['ip', 'type', 'source_url', 'context'])
-  addSheet('Object Refs', data.object_references || [], ['type', 'value', 'source_url', 'context', 'potential_idor'])
-  addSheet('Subdomains', (data.discovered_subdomains || []).map(s => ({ subdomain: s })), ['subdomain'])
-  addSheet('External Domains', data.external_domains || [], ['domain', 'times_seen'])
+  XLSX.writeFile(wb, `js-recon-${timestampSlug()}.xlsx`)
+}
 
-  const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
-  XLSX.writeFile(wb, `js-recon-${ts}.xlsx`)
+export function exportJsReconJson(data: JsReconData) {
+  const sheets = buildJsReconSheets(data)
+  const out: Record<string, unknown[]> = {}
+  for (const sheet of sheets) {
+    if (!sheet.rows.length) continue
+    out[sheet.name] = sheet.rows.map(r => {
+      const row: Record<string, unknown> = {}
+      for (const col of sheet.columns) row[col] = getCol(r, col) ?? null
+      return row
+    })
+  }
+  downloadBlob(
+    JSON.stringify(out, null, 2),
+    `js-recon-${timestampSlug()}.json`,
+    'application/json;charset=utf-8',
+  )
+}
+
+export function exportJsReconMarkdown(data: JsReconData) {
+  const sheets = buildJsReconSheets(data)
+  const parts: string[] = [`# JS Recon Findings`, '', `Generated: ${new Date().toISOString()}`, '']
+  for (const sheet of sheets) {
+    if (!sheet.rows.length) continue
+    parts.push(`## ${sheet.name} (${sheet.rows.length})`, '')
+    const headerLine = `| ${sheet.columns.join(' | ')} |`
+    const sepLine = `| ${sheet.columns.map(() => '---').join(' | ')} |`
+    parts.push(headerLine, sepLine)
+    for (const r of sheet.rows) {
+      const cells = sheet.columns.map(col => escapeMarkdownCell(flattenCellValue(getCol(r, col))))
+      parts.push(`| ${cells.join(' | ')} |`)
+    }
+    parts.push('')
+  }
+  downloadBlob(parts.join('\n'), `js-recon-${timestampSlug()}.md`, 'text/markdown;charset=utf-8')
 }
 
 function sevBadge(severity: string) {

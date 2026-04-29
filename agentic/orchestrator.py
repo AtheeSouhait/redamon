@@ -355,6 +355,12 @@ class AgentOrchestrator:
             self.tool_executor.set_gau_urlscan_api_key(urlscan_key)
             logger.info("URLScan API key configured for GAU enrichment")
 
+        # PDCP API key (injected silently as PDCP_API_KEY env var into cve_intel calls)
+        pdcp_key = user_settings.get('pdcpApiKey', '')
+        if pdcp_key and self.tool_executor:
+            self.tool_executor.set_cve_intel_api_key(pdcp_key)
+            logger.info("PDCP API key configured for cve_intel rate-limit upgrade")
+
         # Google dork (SerpAPI)
         serp_api_key = user_settings.get('serpApiKey', '')
         if self._google_dork_manager and self.tool_executor:

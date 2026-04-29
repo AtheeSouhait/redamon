@@ -135,7 +135,7 @@ RUN retry go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest \
 # Source: https://github.com/projectdiscovery/httpx (MIT) - HTTP toolkit
 # Source: https://github.com/hahwul/dalfox (MIT) - XSS vulnerability scanner
 # Source: https://github.com/projectdiscovery/dnsx (MIT) - Fast DNS toolkit
-# Source: https://github.com/Emoe/kxss (MIT) - Per-character XSS reflection probe
+# Source: https://github.com/Emoe/kxss (Apache-2.0) - Per-character XSS reflection probe
 RUN retry go install -v github.com/ffuf/ffuf/v2@latest \
     && retry go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest \
     && retry go install -v github.com/hahwul/dalfox/v2@latest \
@@ -160,9 +160,18 @@ RUN retry go install -v github.com/owasp-amass/amass/v4/...@master
 # Source: https://github.com/lc/gau (MIT)
 RUN retry go install -v github.com/lc/gau/v2/cmd/gau@latest
 
+# Install vulnx -- ProjectDiscovery CVE intelligence CLI (successor to cvemap).
+# Aggregates NVD, CISA KEV, EPSS, HackerOne, GitHub PoCs, and Nuclei template
+# availability into a single queryable dataset. Source:
+# https://github.com/projectdiscovery/vulnx (MIT). Used by the cve_intel tool.
+# Optional PDCP key (configured per-user from /settings, never via env vars or
+# build args) is injected at call time via the cve_intel MCP wrapper.
+RUN retry go install -v github.com/projectdiscovery/vulnx/v2/cmd/vulnx@latest
+
 # Install subzy: subdomain takeover fingerprint scanner.
 # Maintained fingerprint corpus (90+ providers) sharper than httpx -td banks for
-# unclaimed-resource detection. Source: https://github.com/PentestPad/subzy (MIT).
+# unclaimed-resource detection. Source: https://github.com/PentestPad/subzy (GPL-2.0;
+# invoked as separate-process CLI, mere aggregation).
 # Used by the Subdomain Takeover community skill.
 RUN retry go install -v github.com/PentestPad/subzy@latest
 
@@ -223,6 +232,70 @@ RUN mkdir -p /usr/share/seclists/Discovery/Web-Content && \
 # Source: https://github.com/devanshbatham/ParamSpider (MIT)
 RUN retry pip install --no-cache-dir git+https://github.com/devanshbatham/ParamSpider.git
 
+# semgrep — source-aware static analysis (rule packs from semgrep registry).
+# Used by the source-aware-sast Chat Skill when the operator provides a repo
+# (git clone target) for a black-box-bridged code review. Pinned via pip in the
+# shared venv; no apt package because the upstream Kali build lags semgrep releases.
+# Source: https://github.com/semgrep/semgrep (LGPL-2.1)
+RUN retry pip install --no-cache-dir semgrep
+
+# Node.js + npm (for the prototype-pollution Chat Skill: gadget testing via execute_code Node workers).
+# Apt list was wiped by the earlier core-tools layer, so update first.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python libs powering the SOAP, SAML, and WebSocket Chat Skills via execute_code.
+# - websockets: ws/wss client for CSWSH and per-message-auth probes.
+# - zeep: SOAP client for WS-Security / XSW probing.
+# - python3-saml: SAML XSW / Comment Injection / Golden SAML construction.
+RUN pip install --no-cache-dir websockets zeep python3-saml
+
+# Cloud SDKs powering the AWS / Azure / GCP Chat Skills via execute_code.
+# Heavy CLIs (awscli, az, gcloud) are skipped in favor of the Python SDKs which
+# are both lighter and more script-friendly inside the agent's execute_code path.
+# - boto3 + botocore: AWS API access, IAM enumeration, IMDS interaction.
+# - msal + azure-identity + azure-mgmt-resource: Entra ID / Azure resource probes.
+# - google-auth + google-api-python-client + google-cloud-storage: GCP service
+#   accounts, IAM, Storage probes.
+RUN pip install --no-cache-dir \
+    boto3 \
+    msal azure-identity azure-mgmt-resource \
+    google-auth google-api-python-client google-cloud-storage
+
+# Post-exploitation enumerators (Linux side, served via /opt/tools/linux/).
+# Used by the Linux Privilege Escalation Chat Skill and the Docker Escape skill
+# (deepce). Pre-staged in the image so the agent can serve them to a foothold
+# host or run them inside the sandbox during local-priv-esc reconnaissance.
+# - linpeas.sh: PEASS-ng Linux privesc auditor (carlospolop)
+# - LinEnum.sh:  rebootuser/LinEnum Linux enumeration helper
+# - pspy64:      DominicBreuker/pspy real-time process snooper (no root needed)
+# - deepce.sh:   stealthcopter/deepce Docker container escape primitive scanner
+RUN mkdir -p /opt/tools/linux \
+    && retry curl -fsSL -o /opt/tools/linux/linpeas.sh \
+       https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh \
+    && retry curl -fsSL -o /opt/tools/linux/LinEnum.sh \
+       https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh \
+    && retry curl -fsSL -o /opt/tools/linux/pspy64 \
+       https://github.com/DominicBreuker/pspy/releases/latest/download/pspy64 \
+    && retry curl -fsSL -o /opt/tools/linux/deepce.sh \
+       https://raw.githubusercontent.com/stealthcopter/deepce/main/deepce.sh \
+    && chmod +x /opt/tools/linux/*
+
+# Post-exploitation enumerators (Windows side, served via /opt/tools/windows/).
+# Used by the Windows Privilege Escalation Chat Skill. The agent stages these
+# from the sandbox to a compromised Windows host (HTTP, SMB, or upload primitive).
+# - winPEASx64.exe: PEASS-ng Windows privesc auditor (carlospolop)
+# - PowerUp.ps1:    PowerSploit / Empire PowerUp (now under PowerShellMafia mirror)
+# - PrivescCheck.ps1: itm4n/PrivescCheck audit script
+RUN mkdir -p /opt/tools/windows \
+    && retry curl -fsSL -o /opt/tools/windows/winPEASx64.exe \
+       https://github.com/peass-ng/PEASS-ng/releases/latest/download/winPEASx64.exe \
+    && retry curl -fsSL -o /opt/tools/windows/PowerUp.ps1 \
+       https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Privesc/PowerUp.ps1 \
+    && retry curl -fsSL -o /opt/tools/windows/PrivescCheck.ps1 \
+       https://github.com/itm4n/PrivescCheck/releases/latest/download/PrivescCheck.ps1
+
 # AD/post-exploitation Python tools
 # hashID: hash type identification (MD5, NTLM, bcrypt, etc) — unmaintained since 2015 but functional
 # bloodhound: Active Directory relationship collector (attack path analysis)
@@ -234,7 +307,8 @@ RUN pip install --no-cache-dir hashID bloodhound certipy-ad ldapdomaindump \
     bloodyAD networkx orjson
 
 # gMSADumper: read gMSA passwords when BloodHound flags ReadGMSAPassword edge.
-# Not on PyPI — install from git. Source: https://github.com/micahvandeusen/gMSADumper (MIT)
+# Not on PyPI — install from git. Source: https://github.com/micahvandeusen/gMSADumper
+# (GPL-3.0; invoked as separate-process CLI, mere aggregation)
 RUN retry git clone --depth 1 https://github.com/micahvandeusen/gMSADumper.git /opt/gMSADumper \
     && pip install --no-cache-dir ldap3 pyasn1 \
     && chmod +x /opt/gMSADumper/gMSADumper.py \
@@ -294,7 +368,7 @@ RUN apt-get update \
         -o /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
 
 # SSTImap — Server-Side Template Injection detection & exploitation
-# Source: https://github.com/vladko312/SSTImap (MIT)
+# Source: https://github.com/vladko312/SSTImap (GPL-3.0; invoked as separate-process CLI, mere aggregation)
 RUN retry git clone --depth 1 https://github.com/vladko312/SSTImap.git /opt/sstimap \
     && pip install --no-cache-dir -r /opt/sstimap/requirements.txt \
     && chmod +x /opt/sstimap/sstimap.py \

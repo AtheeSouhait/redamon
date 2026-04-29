@@ -20,6 +20,7 @@ const TOOL_KEY_LABEL: Record<string, string> = {
   google_dork: 'SerpAPI',
   execute_wpscan: 'WPScan',
   execute_gau: 'URLScan',
+  cve_intel: 'PDCP',
 }
 
 interface ToolExecutionCardProps {

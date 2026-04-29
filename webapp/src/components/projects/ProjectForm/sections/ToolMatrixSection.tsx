@@ -48,6 +48,12 @@ const TOOL_KEY_INFO: Record<string, { field: string; label: string; hint: string
     hint: 'Enriches execute_gau results with URLScan archived data (free tier available)',
     url: 'https://urlscan.io/user/signup',
   },
+  cve_intel: {
+    field: 'pdcpApiKey',
+    label: 'PDCP',
+    hint: 'Optional. Lifts the 10 req/min anonymous rate limit on the ProjectDiscovery CVE database (vulnx).',
+    url: 'https://cloud.projectdiscovery.io',
+  },
 }
 
 interface ToolMatrixSectionProps {
@@ -79,6 +85,7 @@ export function ToolMatrixSection({ data, updateField }: ToolMatrixSectionProps)
         if (!settings.serpApiKey) missing.add('google_dork')
         if (!settings.wpscanApiToken) missing.add('execute_wpscan')
         if (!settings.urlscanApiKey) missing.add('execute_gau')
+        if (!settings.pdcpApiKey) missing.add('cve_intel')
         // tradecraft_lookup: warn when zero enabled resources are configured
         fetch(`/api/users/${userId}/tradecraft-resources`)
           .then(r2 => r2.ok ? r2.json() : [])
@@ -165,6 +172,7 @@ export function ToolMatrixSection({ data, updateField }: ToolMatrixSectionProps)
             {[
               { id: 'query_graph', label: 'query_graph' },
               { id: 'web_search', label: 'web_search' },
+              { id: 'cve_intel', label: 'cve_intel' },
               { id: 'shodan', label: 'shodan' },
               { id: 'google_dork', label: 'google_dork' },
               { id: 'execute_curl', label: 'execute_curl' },

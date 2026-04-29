@@ -87,7 +87,7 @@ export function KatanaSection({ data, updateField, onRun }: KatanaSectionProps) 
                 type="number"
                 className="textInput"
                 value={data.katanaMaxUrls}
-                onChange={(e) => updateField('katanaMaxUrls', parseInt(e.target.value) || 300)}
+                onChange={(e) => updateField('katanaMaxUrls', parseInt(e.target.value) || 300000)}
                 min={1}
               />
               <span className={styles.fieldHint}>Maximum number of URLs to collect per domain</span>

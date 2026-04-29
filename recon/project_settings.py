@@ -214,7 +214,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'KATANA_ENABLED': True,
     'KATANA_DOCKER_IMAGE': 'projectdiscovery/katana:latest',
     'KATANA_DEPTH': 2,
-    'KATANA_MAX_URLS': 300,
+    'KATANA_MAX_URLS': 300000,
     'KATANA_RATE_LIMIT': 50,
     'KATANA_TIMEOUT': 3600,
     'KATANA_JS_CRAWL': True,
@@ -526,10 +526,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'SUBFINDER_DOCKER_IMAGE': 'projectdiscovery/subfinder:latest',
 
     # Amass (OWASP subdomain enumeration)
-    'AMASS_ENABLED': True,
+    'AMASS_ENABLED': False,
     'AMASS_MAX_RESULTS': 5000,
     'AMASS_TIMEOUT': 10,
-    'AMASS_ACTIVE': True,
+    'AMASS_ACTIVE': False,
     'AMASS_BRUTE': False,
     'AMASS_BRUTE_WORDLISTS': ['default'],
     'AMASS_DOCKER_IMAGE': 'caffix/amass:latest',

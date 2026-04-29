@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.0] - 2026-04-29
+
+### Added
+
+- **45 new default Chat Skills** under [agentic/skills/](agentic/skills/) (catalog now 46 with the existing `ad_kill_chain`). All ship volume-mounted, no rebuild required to pick them up:
+  - **Tooling (9):** ffuf, nuclei, sqlmap, nmap, katana, httpx, naabu, subfinder, semgrep
+  - **Vulnerabilities (17):** JWT Attacks, OAuth 2.0 / OIDC, Open Redirect, Information Disclosure, CSRF, Race Conditions, Business Logic Flaws, LDAP Injection, XPath Injection, Web Cache Poisoning, Prototype Pollution, CORS Misconfigurations, Host Header Injection, Clickjacking, CRLF Injection, ReDoS, 2FA OTP Bypass
+  - **Protocols (4):** GraphQL Security, WebSocket Security, SOAP / WS-Security, SAML Attacks
+  - **Technologies (2):** Firebase Firestore, Supabase
+  - **Frameworks (3):** Next.js, FastAPI, NestJS
+  - **API Security (1):** OpenAPI / Swagger Exposure
+  - **Active Directory (3 new):** Kerberoasting + ASREPRoast, AD-CS ESC1-ESC15, BloodHound Path-to-DA
+  - **Cloud (3):** AWS, Azure, GCP
+  - **Post-Exploitation (3):** Docker Escape, Linux Privesc, Windows Privesc
+- **`cve_intel` agent tool** ([agentic/prompts/tool_registry.py](agentic/prompts/tool_registry.py)) -- wraps the [vulnx](https://github.com/projectdiscovery/vulnx) CLI in `mcp/kali-sandbox/Dockerfile` for ProjectDiscovery's CVE intelligence (NVD + CISA KEV + EPSS + GitHub PoCs + Nuclei template availability). Subcommands: `id CVE-ID`, `search "lucene query"`, `filters`, `analyze --field X`, `healthcheck`. Anonymous use rate-limited to 10 req/min; set `PDCP_API_KEY` for higher limits. Use after `query_graph` (CVEs already on graph nodes) and before `execute_nuclei` (confirms a template exists). Lucene-style filters: `severity:critical`, `cvss_score:>7`, `epss_score:>0.5`, `is_kev:true`, `is_template:true`, `is_poc:true`, `vendor:apache`, `product:confluence`, `age_in_days:<30`, `tags:rce`. Always `--json --limit N`
+- **Table-page row export** -- per-table **Download MD** and **Download JSON** buttons in the Tables page so any graph view (Endpoints, Subdomains, IPs, Vulnerabilities, etc.) can be exported with the current filter / sort / row selection applied; MD output is human-readable for reports, JSON output preserves typed values for piping into downstream tooling
+- **Kali sandbox tooling additions** ([mcp/kali-sandbox/Dockerfile](mcp/kali-sandbox/Dockerfile)) backing the new skills:
+  - `semgrep` (pip) -- source-aware SAST with rule packs `p/default`, `p/owasp-top-ten`, `p/secrets`, `p/python`, `p/javascript`, `p/typescript`, `p/golang`, `p/java`
+  - `nodejs` + `npm` (apt) -- prototype-pollution gadget testing and JS exploit POCs
+  - `websockets`, `zeep`, `python3-saml` (pip) -- CSWSH probes, SOAP / WS-Security, SAML XSW / Comment Injection / Golden SAML
+  - `boto3`, `msal`, `azure-identity`, `azure-mgmt-resource`, `google-auth`, `google-api-python-client`, `google-cloud-storage` (pip) -- AWS / Azure / GCP API access via `execute_code` (cloud CLIs intentionally skipped; SDKs are lighter and more script-friendly)
+  - Pre-staged post-exploit toolkits at `/opt/tools/{linux,windows}/` -- `linpeas.sh`, `LinEnum.sh`, `pspy64`, `deepce.sh`, `winPEASx64.exe`, `PowerUp.ps1`, `PrivescCheck.ps1`. Served to footholds via `python3 -m http.server` from the sandbox
+
+### Changed
+
+- **`tool_registry.py` `kali_shell` description** updated with `cve_intel`, `semgrep`, the new Python libs, Node.js, and the `/opt/tools/{linux,windows}/` toolkit paths so the agent's prompt always sees the current toolset
+- **README** ([README.md:556](README.md#L556)) Chat Skills paragraph rewritten: stale "36 community-contributed skills" -> "**46 reference skills**" with full category breakdown; kali_shell row in the agent-tools table enriched with the new binaries and Python libs
+- **Wiki** -- [redamon.wiki/Chat-Skills.md](redamon.wiki/Chat-Skills.md) catalog tables now list 46 skills across Active Directory / Tooling / Protocols / Technologies / Frameworks / API Security / Vulnerabilities / Cloud / Post-Exploitation; [redamon.wiki/Global-Settings.md](redamon.wiki/Global-Settings.md) "Import from Community" updated to "**46** shipped skills"; [redamon.wiki/AI-Agent-Guide.md](redamon.wiki/AI-Agent-Guide.md) `kali_shell` reference page expanded from 8 generic bullets to 13 enriched bullets covering all the new tooling
+
+### Notes
+
+- **Minor version bump** (4.4.0 -> 4.5.0) -- 45 new Chat Skill files (volume-mounted, no rebuild), one new agent tool wired through the registry, frontend table-export buttons, and Kali image enrichment. Required commands after pulling: `docker compose build kali-sandbox && docker compose up -d kali-sandbox` (semgrep + nodejs/npm + cloud SDK pips + 7 post-exploit toolkit fetches), `docker compose build agent && docker compose up -d agent` (registry change). Webapp rebuild for the table-export buttons in production mode (`docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d webapp` hot-reloads in dev). Verified end-to-end inside the rebuilt container: 35/35 PASS across the new tools and Python libraries (binary presence, version reporting, semgrep rule scan, node prototype-pollution gadget, npm registry, zeep WSDL Document, python3-saml Settings construction, boto3 STS endpoint, msal authority, google-cloud-storage anonymous client). All Chat Skills validated against [agentic/orchestrator_helpers/skill_loader.py](agentic/orchestrator_helpers/skill_loader.py)
+
+---
+
 ## [4.4.0] - 2026-04-26
 
 ### Added

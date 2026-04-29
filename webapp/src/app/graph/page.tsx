@@ -12,7 +12,7 @@ import { GvmConfirmModal } from './components/GvmConfirmModal'
 import { ReconLogsDrawer } from './components/ReconLogsDrawer'
 import { ViewTabs, type ViewMode, type TunnelStatus, type TableViewMode } from './components/ViewTabs'
 import { DataTable } from './components/DataTable'
-import { JsReconTable, exportJsReconXlsx } from './components/JsReconTable'
+import { JsReconTable, exportJsReconXlsx, exportJsReconJson, exportJsReconMarkdown } from './components/JsReconTable'
 import type { JsReconData } from './components/JsReconTable'
 import {
   KillChainTable,
@@ -36,7 +36,7 @@ import { GraphViews } from './components/GraphViews'
 import { GitHubStarBanner } from './components/GitHubStarBanner'
 import { useGraphData, useDimensions, useNodeSelection, useTableData, useGraphViews } from './hooks'
 import { useStableGraphData } from './hooks/useStableGraphData'
-import { exportToExcel } from './utils/exportExcel'
+import { exportToExcel, exportToJson, exportToMarkdown } from './utils/exportExcel'
 import { clusterGraphData } from './utils/clusterNodes'
 import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, useMultiPartialReconStatus, useMultiPartialReconSSE } from '@/hooks'
 import { useProjectById } from '@/hooks/useProjects'
@@ -640,23 +640,47 @@ export default function GraphPage() {
     setActiveNodeTypes(new Set())
   }, [])
 
-  const handleExportExcel = useCallback(() => {
+  const filteredExportRows = useCallback(() => {
+    let rows = effectiveTableRows
+    if (globalFilter) {
+      const search = globalFilter.toLowerCase()
+      rows = rows.filter(r =>
+        r.node.name?.toLowerCase().includes(search) ||
+        r.node.type?.toLowerCase().includes(search)
+      )
+    }
+    return rows
+  }, [effectiveTableRows, globalFilter])
+
+  const handleExportExcel = useCallback(async () => {
     try {
-      let rows = effectiveTableRows
-      if (globalFilter) {
-        const search = globalFilter.toLowerCase()
-        rows = rows.filter(r =>
-          r.node.name?.toLowerCase().includes(search) ||
-          r.node.type?.toLowerCase().includes(search)
-        )
-      }
-      exportToExcel(rows)
+      await exportToExcel(filteredExportRows())
       toast.success('Excel exported')
     } catch (err) {
       console.error('Failed to export Excel:', err)
       toast.error('Failed to export Excel')
     }
-  }, [effectiveTableRows, globalFilter, toast])
+  }, [filteredExportRows, toast])
+
+  const handleExportJson = useCallback(() => {
+    try {
+      exportToJson(filteredExportRows())
+      toast.success('JSON exported')
+    } catch (err) {
+      console.error('Failed to export JSON:', err)
+      toast.error('Failed to export JSON')
+    }
+  }, [filteredExportRows, toast])
+
+  const handleExportMarkdown = useCallback(() => {
+    try {
+      exportToMarkdown(filteredExportRows())
+      toast.success('Markdown exported')
+    } catch (err) {
+      console.error('Failed to export Markdown:', err)
+      toast.error('Failed to export Markdown')
+    }
+  }, [filteredExportRows, toast])
 
   // ── End table view state ──────────────────────────────────────────────
 
@@ -1183,6 +1207,8 @@ export default function GraphPage() {
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}
         onExport={handleExportExcel}
+        onExportJson={handleExportJson}
+        onExportMarkdown={handleExportMarkdown}
         totalRows={effectiveTableRows.length}
         filteredRows={textFilteredCount}
         sessionCount={activeSessions.totalCount}
@@ -1196,6 +1222,8 @@ export default function GraphPage() {
         jsReconSearch={jsReconSearch}
         onJsReconSearchChange={setJsReconSearch}
         onJsReconExportXlsx={jsReconData ? () => exportJsReconXlsx(jsReconData) : undefined}
+        onJsReconExportJson={jsReconData ? () => exportJsReconJson(jsReconData) : undefined}
+        onJsReconExportMarkdown={jsReconData ? () => exportJsReconMarkdown(jsReconData) : undefined}
         jsReconMeta={jsReconData ? `${jsReconData.scan_metadata?.js_files_analyzed || 0} files${jsReconData.summary?.validated_keys?.live ? ` | ${jsReconData.summary.validated_keys.live} LIVE` : ''}` : undefined}
         is3D={effectiveIs3D}
         showLabels={showLabels}

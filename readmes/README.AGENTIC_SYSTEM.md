@@ -964,6 +964,7 @@ flowchart TB
     subgraph InfoTools["Informational Tools"]
         QG[query_graph<br/>Neo4j queries]
         WS[web_search<br/>Tavily web search]
+        CVE[cve_intel<br/>vulnx CVE intelligence]
         CURL[execute_curl<br/>HTTP requests & vuln probing]
         NAABU[execute_naabu<br/>Port scanning]
         NMAP_T[execute_nmap<br/>Deep scanning & NSE scripts]
@@ -4129,7 +4130,8 @@ flowchart LR
   "execute_code": ["exploitation", "post_exploitation"],
   "metasploit_console": ["exploitation", "post_exploitation"],
   "msf_restart": ["exploitation", "post_exploitation"],
-  "web_search": ["informational", "exploitation", "post_exploitation"]
+  "web_search": ["informational", "exploitation", "post_exploitation"],
+  "cve_intel": ["informational", "exploitation", "post_exploitation"]
 }
 ```
 

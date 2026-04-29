@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import { exportRedZoneXlsx } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportXlsx'
 import {
   SeverityBadge,
   Mono,
@@ -57,27 +57,30 @@ export const TakeoverTable = memo(function TakeoverTable({ projectId }: Props) {
   const filtered = useMemo(() => filterRowsByText(rows, search), [rows, search])
   const sliced = useMemo(() => filtered.slice(0, limit), [filtered, limit])
 
-  const handleExport = useCallback(() => {
-    exportRedZoneXlsx(
-      filtered,
-      'Takeover',
-      [
-        { key: 'hostname', header: 'Hostname' },
-        { key: 'cnameTarget', header: 'CNAME Target' },
-        { key: 'provider', header: 'Provider' },
-        { key: 'method', header: 'Method' },
-        { key: 'verdict', header: 'Verdict' },
-        { key: 'confidence', header: 'Confidence' },
-        { key: 'severity', header: 'Severity' },
-        { key: 'sources', header: 'Sources' },
-        { key: 'confirmationCount', header: '# Confirm' },
-        { key: 'evidence', header: 'Evidence' },
-        { key: 'firstSeen', header: 'First Seen' },
-        { key: 'lastSeen', header: 'Last Seen' },
-      ],
-      'redzone-takeover',
-    )
-  }, [filtered])
+  const exportConfig = useMemo<RedZoneExportConfig | undefined>(() =>
+    rows.length > 0
+      ? {
+          rows: filtered,
+          sheetName: 'Takeover',
+          fileSlug: 'redzone-takeover',
+          columns: [
+            { key: 'hostname', header: 'Hostname' },
+            { key: 'cnameTarget', header: 'CNAME Target' },
+            { key: 'provider', header: 'Provider' },
+            { key: 'method', header: 'Method' },
+            { key: 'verdict', header: 'Verdict' },
+            { key: 'confidence', header: 'Confidence' },
+            { key: 'severity', header: 'Severity' },
+            { key: 'sources', header: 'Sources' },
+            { key: 'confirmationCount', header: '# Confirm' },
+            { key: 'evidence', header: 'Evidence' },
+            { key: 'firstSeen', header: 'First Seen' },
+            { key: 'lastSeen', header: 'Last Seen' },
+          ],
+        }
+      : undefined,
+    [filtered, rows.length],
+  )
 
   const meta =
     data?.meta && rows.length
@@ -91,7 +94,7 @@ export const TakeoverTable = memo(function TakeoverTable({ projectId }: Props) {
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search hostname, provider, CNAME target..."
-      onExport={rows.length > 0 ? handleExport : undefined}
+      exportConfig={exportConfig}
       onRefresh={refetch}
       isLoading={isLoading}
       error={error}

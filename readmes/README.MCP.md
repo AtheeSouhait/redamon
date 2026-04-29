@@ -178,6 +178,7 @@ Combined HTTP client and port scanner in a single server.
 | `execute_curl(args)` | Run curl with any CLI arguments (60s timeout) |
 | `execute_naabu(args)` | Run naabu with any CLI arguments (300s timeout) |
 | `execute_wpscan(args)` | Run WPScan WordPress vulnerability scanner with any CLI arguments (600s timeout) |
+| `cve_intel(args, api_key="")` | Run ProjectDiscovery `vulnx` for structured CVE intelligence (NVD + KEV + EPSS + PoC + Nuclei templates). Subcommands: `id`, `search`, `filters`, `analyze`, `healthcheck`. The optional `api_key` is silently injected by the executor from per-user Global Settings; LLM never sees it (60s timeout) |
 
 **Curl Examples:**
 ```python

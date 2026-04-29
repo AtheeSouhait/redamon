@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import { exportRedZoneXlsx } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportXlsx'
 import {
   Mono,
   Truncated,
@@ -65,30 +65,33 @@ export const NetInitAccessTable = memo(function NetInitAccessTable({ projectId }
   const filtered = useMemo(() => filterRowsByText(rows, search), [rows, search])
   const sliced = useMemo(() => filtered.slice(0, limit), [filtered, limit])
 
-  const handleExport = useCallback(() => {
-    exportRedZoneXlsx(
-      filtered,
-      'Net-Init-Access',
-      [
-        { key: 'ipAddress', header: 'IP' },
-        { key: 'port', header: 'Port' },
-        { key: 'protocol', header: 'Proto' },
-        { key: 'category', header: 'Category' },
-        { key: 'serviceName', header: 'Service' },
-        { key: 'serviceProduct', header: 'Product' },
-        { key: 'serviceVersion', header: 'Version' },
-        { key: 'techs', header: 'Technologies' },
-        { key: 'subdomains', header: 'Subdomains' },
-        { key: 'vulnTags', header: 'Findings' },
-        { key: 'isCdn', header: 'CDN' },
-        { key: 'cdnName', header: 'CDN Name' },
-        { key: 'asn', header: 'ASN' },
-        { key: 'country', header: 'Country' },
-        { key: 'isp', header: 'ISP' },
-      ],
-      'redzone-net-init-access',
-    )
-  }, [filtered])
+  const exportConfig = useMemo<RedZoneExportConfig | undefined>(() =>
+    rows.length > 0
+      ? {
+          rows: filtered,
+          sheetName: 'Net-Init-Access',
+          fileSlug: 'redzone-net-init-access',
+          columns: [
+            { key: 'ipAddress', header: 'IP' },
+            { key: 'port', header: 'Port' },
+            { key: 'protocol', header: 'Proto' },
+            { key: 'category', header: 'Category' },
+            { key: 'serviceName', header: 'Service' },
+            { key: 'serviceProduct', header: 'Product' },
+            { key: 'serviceVersion', header: 'Version' },
+            { key: 'techs', header: 'Technologies' },
+            { key: 'subdomains', header: 'Subdomains' },
+            { key: 'vulnTags', header: 'Findings' },
+            { key: 'isCdn', header: 'CDN' },
+            { key: 'cdnName', header: 'CDN Name' },
+            { key: 'asn', header: 'ASN' },
+            { key: 'country', header: 'Country' },
+            { key: 'isp', header: 'ISP' },
+          ],
+        }
+      : undefined,
+    [filtered, rows.length],
+  )
 
   return (
     <RedZoneTableShell
@@ -97,7 +100,7 @@ export const NetInitAccessTable = memo(function NetInitAccessTable({ projectId }
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search IP, port, tag, service, country..."
-      onExport={rows.length > 0 ? handleExport : undefined}
+      exportConfig={exportConfig}
       onRefresh={refetch}
       isLoading={isLoading}
       error={error}

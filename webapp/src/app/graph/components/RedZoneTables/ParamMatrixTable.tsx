@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import { exportRedZoneXlsx } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportXlsx'
 import {
   SeverityBadge,
   Mono,
@@ -70,37 +70,40 @@ export const ParamMatrixTable = memo(function ParamMatrixTable({ projectId }: Pr
   const filtered = useMemo(() => filterRowsByText(rows, search), [rows, search])
   const sliced = useMemo(() => filtered.slice(0, limit), [filtered, limit])
 
-  const handleExport = useCallback(() => {
-    exportRedZoneXlsx(
-      filtered,
-      'Param-Matrix',
-      [
-        { key: 'paramName', header: 'Parameter' },
-        { key: 'position', header: 'Position' },
-        { key: 'endpointMethod', header: 'Method' },
-        { key: 'endpointPath', header: 'Endpoint Path' },
-        { key: 'endpointFullUrl', header: 'Full URL' },
-        { key: 'baseUrl', header: 'BaseURL' },
-        { key: 'subdomain', header: 'Subdomain' },
-        { key: 'paramType', header: 'Param Type' },
-        { key: 'paramCategory', header: 'Param Category' },
-        { key: 'isInjectable', header: 'Injectable' },
-        { key: 'sampleValue', header: 'Sample Value' },
-        { key: 'vulnId', header: 'Vuln ID' },
-        { key: 'vulnName', header: 'Vuln Name' },
-        { key: 'vulnSeverity', header: 'Severity' },
-        { key: 'vulnSource', header: 'Source' },
-        { key: 'templateId', header: 'Template ID' },
-        { key: 'matcherName', header: 'Matcher' },
-        { key: 'extractorName', header: 'Extractor' },
-        { key: 'fuzzingMethod', header: 'Fuzz Method' },
-        { key: 'fuzzingPosition', header: 'Fuzz Position' },
-        { key: 'matchedAt', header: 'Matched At' },
-        { key: 'cvssScore', header: 'CVSS' },
-      ],
-      'redzone-param-matrix',
-    )
-  }, [filtered])
+  const exportConfig = useMemo<RedZoneExportConfig | undefined>(() =>
+    rows.length > 0
+      ? {
+          rows: filtered,
+          sheetName: 'Param-Matrix',
+          fileSlug: 'redzone-param-matrix',
+          columns: [
+            { key: 'paramName', header: 'Parameter' },
+            { key: 'position', header: 'Position' },
+            { key: 'endpointMethod', header: 'Method' },
+            { key: 'endpointPath', header: 'Endpoint Path' },
+            { key: 'endpointFullUrl', header: 'Full URL' },
+            { key: 'baseUrl', header: 'BaseURL' },
+            { key: 'subdomain', header: 'Subdomain' },
+            { key: 'paramType', header: 'Param Type' },
+            { key: 'paramCategory', header: 'Param Category' },
+            { key: 'isInjectable', header: 'Injectable' },
+            { key: 'sampleValue', header: 'Sample Value' },
+            { key: 'vulnId', header: 'Vuln ID' },
+            { key: 'vulnName', header: 'Vuln Name' },
+            { key: 'vulnSeverity', header: 'Severity' },
+            { key: 'vulnSource', header: 'Source' },
+            { key: 'templateId', header: 'Template ID' },
+            { key: 'matcherName', header: 'Matcher' },
+            { key: 'extractorName', header: 'Extractor' },
+            { key: 'fuzzingMethod', header: 'Fuzz Method' },
+            { key: 'fuzzingPosition', header: 'Fuzz Position' },
+            { key: 'matchedAt', header: 'Matched At' },
+            { key: 'cvssScore', header: 'CVSS' },
+          ],
+        }
+      : undefined,
+    [filtered, rows.length],
+  )
 
   const injectableCount = (data?.meta?.injectableCount as number | undefined) ?? 0
   const withVulnCount = (data?.meta?.withVulnCount as number | undefined) ?? 0
@@ -113,7 +116,7 @@ export const ParamMatrixTable = memo(function ParamMatrixTable({ projectId }: Pr
       search={search}
       onSearchChange={setSearch}
       searchPlaceholder="Search parameter, endpoint, vuln type..."
-      onExport={rows.length > 0 ? handleExport : undefined}
+      exportConfig={exportConfig}
       onRefresh={refetch}
       isLoading={isLoading}
       error={error}
