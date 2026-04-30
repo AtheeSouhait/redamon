@@ -10,6 +10,19 @@ from project_settings import load_project_settings
 
 logger = logging.getLogger(__name__)
 
+# Anthropic models that reject the `temperature` parameter (HTTP 400
+# "temperature is deprecated for this model"). Add new model IDs here as
+# Anthropic deprecates the param on subsequent generations.
+ANTHROPIC_NO_TEMPERATURE_MODELS = {
+    "claude-opus-4-7",
+    "claude-sonnet-4-7",
+    "claude-haiku-4-6",
+}
+
+
+def _anthropic_supports_temperature(model_id: str) -> bool:
+    return model_id not in ANTHROPIC_NO_TEMPERATURE_MODELS
+
 
 def parse_model_provider(model_name: str) -> tuple[str, str]:
     """
@@ -70,15 +83,18 @@ def setup_llm(
         ptype = custom_llm_config.get("providerType", "openai_compatible")
 
         if ptype == "anthropic":
-            llm = ChatAnthropic(
-                model=custom_llm_config.get("modelIdentifier", api_model),
+            anth_model = custom_llm_config.get("modelIdentifier", api_model)
+            anth_kwargs = dict(
+                model=anth_model,
                 api_key=custom_llm_config.get("apiKey", ""),
                 base_url=custom_llm_config.get("baseUrl") or None,
                 default_headers=custom_llm_config.get("defaultHeaders") or {},
                 timeout=float(custom_llm_config.get("timeout", 120)),
-                temperature=custom_llm_config.get("temperature", 0),
                 max_tokens=custom_llm_config.get("maxTokens", 16384),
             )
+            if _anthropic_supports_temperature(anth_model):
+                anth_kwargs["temperature"] = custom_llm_config.get("temperature", 0)
+            llm = ChatAnthropic(**anth_kwargs)
         elif ptype == "bedrock":
             from langchain_aws import ChatBedrockConverse
             llm = ChatBedrockConverse(
@@ -162,12 +178,14 @@ def setup_llm(
             raise ValueError(
                 f"Anthropic API key is required for model '{model_name}'"
             )
-        llm = ChatAnthropic(
+        anth_kwargs = dict(
             model=api_model,
             api_key=anthropic_api_key,
-            temperature=0,
             max_tokens=16384,
         )
+        if _anthropic_supports_temperature(api_model):
+            anth_kwargs["temperature"] = 0
+        llm = ChatAnthropic(**anth_kwargs)
 
     else:  # openai
         if not openai_api_key:

@@ -419,19 +419,24 @@ class AgentOrchestrator:
                 'TRADECRAFT_SECTION_PICKER_MODEL', 'claude-haiku-4-5-20251001'
             )
             from langchain_anthropic import ChatAnthropic
-            from orchestrator_helpers.llm_setup import _resolve_provider_key
+            from orchestrator_helpers.llm_setup import (
+                _resolve_provider_key,
+                _anthropic_supports_temperature,
+            )
             from project_settings import get_settings
             user_providers = get_settings().get('USER_LLM_PROVIDERS') or []
             anthropic_p = _resolve_provider_key(user_providers, 'anthropic')
             api_key = (anthropic_p or {}).get('apiKey')
             if not api_key:
                 return None
-            return ChatAnthropic(
+            picker_kwargs = dict(
                 model=picker_model,
                 anthropic_api_key=api_key,
-                temperature=0,
                 max_tokens=64,
             )
+            if _anthropic_supports_temperature(picker_model):
+                picker_kwargs["temperature"] = 0
+            return ChatAnthropic(**picker_kwargs)
         except Exception as e:
             logger.debug(f"Section picker LLM build skipped: {e}")
             return None
